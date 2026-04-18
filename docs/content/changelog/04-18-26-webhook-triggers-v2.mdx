@@ -30,7 +30,7 @@ This replaces V1's shared `/handle` URL per toolkit. Events arriving on a V2 URL
 
 **Per-user authorization for app-level events.** On toolkits with per-user visibility — Slack being the first — V2 uses an app-level token (for Slack, an `xapp-…` token with `authorizations:read`) to resolve which connected users are authorized for a given event, so only those users' triggers fire. This underpins a new class of triggers for private channels, direct messages, and other per-recipient events, each routed only to the user the event was intended for.
 
-**Config-level filters.** V2 triggers filter events against `trigger_config` at match time:
+**Match-time filters on new triggers.** Alongside V2, triggers are gaining optional match-time filters set via `trigger_config`. `SLACK_CHANNEL_MESSAGE_RECEIVED`, for example, accepts `channel_id`, `is_bot_message`, and `is_thread_reply`, and only delivers events matching the filter:
 
 ```json
 {
@@ -41,6 +41,8 @@ This replaces V1's shared `/handle` URL per toolkit. Events arriving on a V2 URL
   }
 }
 ```
+
+More toolkits will expose similar filters as they roll out.
 
 **Lifecycle support.** Provider handshakes (Slack `url_verification`, Asana `X-Hook-Secret`, Outlook validation tokens) are handled at ingress. Provider-side webhooks are deregistered when user-level triggers are deleted.
 
