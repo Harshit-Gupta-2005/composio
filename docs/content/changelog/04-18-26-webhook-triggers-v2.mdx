@@ -152,12 +152,10 @@ Your V1 endpoints are unaffected. Any OAuth app you leave on V1 continues to wor
 
 - The V1 ingress URL (`/api/v3/trigger_instances/{toolkit}/{project_id}/handle`) is not deprecated.
 - Every existing trigger slug — `SLACK_RECEIVE_*`, `SLACKBOT_*`, and the equivalent legacy slugs on other toolkits — continues to route through V1.
-- V1, V2, and V3 outbound webhook payload formats are unchanged.
-- No server-side migration touches your existing trigger instances or auth configs.
 
 You only need to set up a V2 webhook endpoint in two cases:
 
-1. **You want to use one of the new V2 trigger slugs** (e.g. `SLACK_CHANNEL_MESSAGE_RECEIVED`, `SLACK_DIRECT_MESSAGE_RECEIVED`). A V2 endpoint is required at setup; without one, the upsert returns `400` with a `suggestedFix`.
+1. **You want to use one of the new V2 trigger slugs** (e.g. `SLACK_CHANNEL_MESSAGE_RECEIVED`, `SLACK_DIRECT_MESSAGE_RECEIVED`). A V2 endpoint is required at setup; without one, the upsert returns `400`.
 2. **You want to move an OAuth app that's currently shared across multiple projects or organizations onto V2.** Pick the project that should own it on V2 and set up an endpoint there, or register separate OAuth apps per project (see [Heads up: OAuth apps are project-scoped on V2](#heads-up-oauth-apps-are-project-scoped-on-v2)).
 
-If neither applies to you, no action is required.
+Even if neither applies today, we recommend moving your active OAuth apps to V2 when it's convenient — you'll pick up signature verification, per-user authorization for private channels and DMs, and per-project ingress isolation along the way.
