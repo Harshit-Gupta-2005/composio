@@ -26,11 +26,11 @@ https://backend.composio.dev/api/v3/webhook_ingress/{toolkit}/{we_xxx}/trigger_e
 
 This replaces V1's shared `/handle` URL per toolkit. Events arriving on a V2 URL are fanned out only to trigger instances on that endpoint's project.
 
-**Signature verification at ingress.** Apollo cryptographically verifies every V2 request against the signing secret stored on the endpoint — HMAC-SHA256, Ed25519, or `token_match` depending on the toolkit. Unsigned or tampered payloads are rejected, so third parties cannot spoof events onto your triggers. For providers that sign a request timestamp (e.g. Slack), replay protection additionally rejects requests whose timestamp falls outside the allowed skew window.
+**Signature verification at ingress.** Composio cryptographically verifies every V2 request against the signing secret stored on the endpoint — HMAC-SHA256, Ed25519, or `token_match` depending on the toolkit. Unsigned or tampered payloads are rejected, so third parties cannot spoof events onto your triggers. For providers that sign a request timestamp (e.g. Slack), replay protection additionally rejects requests whose timestamp falls outside the allowed skew window.
 
 **Per-user authorization for app-level events.** On toolkits with per-user visibility — Slack being the first — V2 uses an app-level token (for Slack, an `xapp-…` token with `authorizations:read`) to resolve which connected users are authorized for a given event, so only those users' triggers fire. This underpins a new class of triggers for private channels, direct messages, and other per-recipient events, each routed only to the user the event was intended for.
 
-**Lifecycle support.** Provider handshakes (Slack `url_verification`, Asana `X-Hook-Secret`, Outlook validation tokens) are handled at ingress. Provider-side webhooks are deregistered when user-level triggers are deleted.
+**Handshakes and lifecycle handled for you.** Composio automatically responds to provider verification challenges — Slack `url_verification`, Asana `X-Hook-Secret`, Outlook validation tokens, and so on — so callback URLs verify without any custom code on your side. Composio also deregisters user-level webhooks with the provider when the trigger is deleted.
 
 ## API reference
 
@@ -89,7 +89,7 @@ Store the signing secret before switching the provider's callback URL. If Slack 
 
 ### 4. Point your Slack app at the V2 URL
 
-Set **Event Subscriptions → Request URL** in your Slack app to the `webhook_url` returned in step 2. Slack issues a `url_verification` challenge; Apollo responds and sets `verified_at` on the endpoint.
+Set **Event Subscriptions → Request URL** in your Slack app to the `webhook_url` returned in step 2. Slack issues a `url_verification` challenge; Composio responds automatically and sets `verified_at` on the endpoint.
 
 ### 5. (Optional) Add an app-level token for private channel and DM triggers
 
