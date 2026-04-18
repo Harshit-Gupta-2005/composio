@@ -111,7 +111,7 @@ Set **Event Subscriptions → Request URL** in your Slack app to the `webhook_ur
 
 ### 6. Create V2 trigger instances
 
-Two new Slack triggers ship on V2 — browse them on the [Slack toolkit page](https://platform.composio.dev/marketplace/slack) under **Triggers**, or use the table below to map them from your existing V1 slugs:
+Two new Slack triggers go live on V2 today, with more to follow on V2 — both for Slack and for other toolkits. The table below maps your existing V1 slugs to the new V2 equivalents:
 
 | V1 slug (still supported) | V2 replacement | `app_token` required? |
 |---|---|---|
@@ -144,7 +144,6 @@ Project-scoped endpoints give each project:
 - Clean fan-out — events reach only that project's trigger instances
 - A signing secret and app-level token scoped to this project alone
 - Accurate per-project metering and billing
-- Independent teardown, rotation, and verification state
 
 Your V1 endpoints are unaffected. Any OAuth app you leave on V1 continues to work across projects exactly as it does today.
 
