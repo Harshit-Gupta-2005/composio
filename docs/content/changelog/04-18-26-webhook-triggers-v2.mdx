@@ -134,6 +134,8 @@ curl -X POST "https://backend.composio.dev/api/v3/trigger_instances/SLACK_CHANNE
 
 The provider dashboard accepts only one callback URL per OAuth app, and each V2 URL resolves to exactly one project — so a single OAuth app cannot feed multiple projects on V2.
 
+The signing secret also lives on the endpoint, so the reverse holds too: two different OAuth apps cannot share one V2 endpoint — Composio would only verify signatures from the app whose secret is on file.
+
 Project-scoped endpoints give each project:
 
 - A dedicated ingress rate-limit and backpressure budget
