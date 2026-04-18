@@ -148,16 +148,16 @@ Your V1 endpoints are unaffected. Any OAuth app you leave on V1 continues to wor
 
 ## Backward compatibility
 
-- V1 ingress (`/api/v3/trigger_instances/{toolkit}/{project_id}/handle`) is **not deprecated**.
-- All existing trigger slugs — every `SLACK_RECEIVE_*`, `SLACKBOT_*`, and equivalent legacy slug across toolkits — continue to route through V1 unchanged.
-- No server-side data migration touches existing trigger instances.
-- V1, V2, and V3 outbound webhook payload formats are unaffected.
+**Everything you have today keeps working — same URLs, same trigger slugs, same payload shapes, no data migration.**
 
-## Availability
+- The V1 ingress URL (`/api/v3/trigger_instances/{toolkit}/{project_id}/handle`) is not deprecated.
+- Every existing trigger slug — `SLACK_RECEIVE_*`, `SLACKBOT_*`, and the equivalent legacy slugs on other toolkits — continues to route through V1.
+- V1, V2, and V3 outbound webhook payload formats are unchanged.
+- No server-side migration touches your existing trigger instances or auth configs.
 
-V2 is opt-in. Slack is the first toolkit available; HubSpot, Linear, and other app-level toolkits will follow the same pattern and be announced in their own changelog entries. There is no migration deadline — adopt V2 when you need its features.
+You only need to set up a V2 webhook endpoint in two cases:
 
-## Support
+1. **You want to use one of the new V2 trigger slugs** (e.g. `SLACK_CHANNEL_MESSAGE_RECEIVED`, `SLACK_DIRECT_MESSAGE_RECEIVED`). A V2 endpoint is required at setup; without one, the upsert returns `400` with a `suggestedFix`.
+2. **You want to move an OAuth app that's currently shared across multiple projects or organizations onto V2.** Pick the project that should own it on V2 and set up an endpoint there, or register separate OAuth apps per project (see [Heads up: OAuth apps are project-scoped on V2](#heads-up-oauth-apps-are-project-scoped-on-v2)).
 
-- [Discord](https://discord.gg/composio)
-- [support@composio.dev](mailto:support@composio.dev)
+If neither applies to you, no action is required.
