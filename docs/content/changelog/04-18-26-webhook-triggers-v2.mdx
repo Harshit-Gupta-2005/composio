@@ -155,15 +155,14 @@ V1's shared endpoint continues to work for any OAuth app left on V1, with no cha
 
 ## Backward compatibility
 
-- V1 ingress (`/api/v3/trigger_instances/{toolkit}/{project_id}/handle`) is **not deprecated** and has no sunset date.
+- V1 ingress (`/api/v3/trigger_instances/{toolkit}/{project_id}/handle`) is **not deprecated**.
 - All existing trigger slugs — every `SLACK_RECEIVE_*`, `SLACKBOT_*`, and equivalent legacy slug across toolkits — continue to route through V1 unchanged.
 - No server-side data migration touches existing trigger instances.
 - V1, V2, and V3 outbound webhook payload formats are unaffected.
 
-## Rollout
+## Availability
 
-- **2026-04-18** — `webhook_endpoints` APIs, V2 ingress, signature verification, and the Slack V2 slugs are live in production.
-- **Next** — HubSpot, Linear, and other app-level toolkits will migrate using the same pattern, each announced in its own changelog entry.
+V2 is opt-in. Slack is the first toolkit available; HubSpot, Linear, and other app-level toolkits will follow the same pattern and be announced in their own changelog entries. There is no migration deadline — adopt V2 when you need its features.
 
 ## Support
 
