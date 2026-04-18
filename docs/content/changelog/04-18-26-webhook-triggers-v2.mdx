@@ -30,20 +30,6 @@ This replaces V1's shared `/handle` URL per toolkit. Events arriving on a V2 URL
 
 **Per-user authorization for app-level events.** On toolkits with per-user visibility — Slack being the first — V2 uses an app-level token (for Slack, an `xapp-…` token with `authorizations:read`) to resolve which connected users are authorized for a given event, so only those users' triggers fire. This underpins a new class of triggers for private channels, direct messages, and other per-recipient events, each routed only to the user the event was intended for.
 
-**Match-time filters on new triggers.** Alongside V2, triggers are gaining optional match-time filters set via `trigger_config`. `SLACK_CHANNEL_MESSAGE_RECEIVED`, for example, accepts `channel_id`, `is_bot_message`, and `is_thread_reply`, and only delivers events matching the filter:
-
-```json
-{
-  "trigger_config": {
-    "channel_id": "C_SUPPORT",
-    "is_bot_message": "false",
-    "is_thread_reply": "false"
-  }
-}
-```
-
-More toolkits will expose similar filters as they roll out.
-
 **Lifecycle support.** Provider handshakes (Slack `url_verification`, Asana `X-Hook-Secret`, Outlook validation tokens) are handled at ingress. Provider-side webhooks are deregistered when user-level triggers are deleted.
 
 ## API reference
@@ -131,7 +117,7 @@ curl -X POST "https://backend.composio.dev/api/v3/trigger_instances/SLACK_CHANNE
   -H "Content-Type: application/json" \
   -d '{
     "connected_account_id": "CONNECTED_ACCOUNT_ID",
-    "trigger_config": { "channel_id": "C_SUPPORT", "is_bot_message": "false" }
+    "trigger_config": {}
   }'
 ```
 
