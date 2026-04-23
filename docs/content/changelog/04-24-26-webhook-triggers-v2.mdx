@@ -1,7 +1,7 @@
 ---
 title: "Webhook Triggers V2"
 description: "Dedicated webhook endpoint per OAuth app, ingress-level signature verification, per-user authorization for private channels and DMs, and config-level event filters. Opt-in; V1 is unchanged."
-date: "2026-04-20"
+date: "2026-04-24"
 ---
 
 Webhook Triggers V2 introduces a first-class `webhook_endpoints` resource with a dedicated ingress URL per OAuth app. V2 is **opt-in** and scoped to new trigger slugs — existing V1 triggers, URLs, and payload formats are unchanged.
@@ -62,6 +62,28 @@ curl "https://backend.composio.dev/api/v3/webhook_endpoints/schema?toolkit_slug=
   -H "x-api-key: YOUR_API_KEY"
 ```
 
+Sample response:
+
+```json
+{
+  "toolkit_slug": "slack",
+  "setup_fields": {
+    "webhook_signing_secret": {
+      "display_name": "Signing Secret",
+      "description": "Webhook request signing secret from your Slack app dashboard",
+      "is_required": true,
+      "is_secret": true
+    },
+    "app_token": {
+      "display_name": "App-Level Token",
+      "description": "Slack xapp- token with authorizations:read scope for event authorization",
+      "is_required": true,
+      "is_secret": true
+    }
+  }
+}
+```
+
 ### 2. Create the endpoint
 
 ```bash
@@ -80,7 +102,7 @@ Sample response:
   "client_id": "YOUR_SLACK_CLIENT_ID",
   "webhook_url": "https://backend.composio.dev/api/v3/webhook_ingress/slack/we_abc123/trigger_event",
   "data": null,
-  "created_at": "2026-04-20T10:00:00.000Z"
+  "created_at": "2026-04-24T10:00:00.000Z"
 }
 ```
 
@@ -148,7 +170,7 @@ curl -X POST "https://backend.composio.dev/api/v3/trigger_instances/SLACK_CHANNE
 
 The provider dashboard accepts only one callback URL per OAuth app, and each V2 URL resolves to exactly one project — so a single OAuth app cannot feed multiple projects on V2.
 
-The signing secret also lives on the endpoint, so the reverse holds too: two different OAuth apps cannot share one V2 endpoint — Composio would only verify signatures from the app whose secret is on file.
+The signing secret also lives on the endpoint, so the reverse holds too: two different OAuth apps cannot share one V2 endpoint — Composio only verifies signatures against the secret stored on that endpoint, so requests signed by a different OAuth app would be rejected.
 
 In return, every project graduates to a first-class webhook tenant on V2 — with its own:
 
