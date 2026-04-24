@@ -13,7 +13,7 @@ Webhook Triggers V2 introduces a first-class `webhook_endpoints` resource with a
 | New `webhook_endpoints` API | None (opt-in) |
 | New ingress path `/api/v3/webhook_ingress/{toolkit}/{we_*}/trigger_event` | None (opt-in) |
 | Ingress-level signature verification | Automatic for V2 endpoints |
-| New Slack V2 slugs (`SLACK_CHANNEL_MESSAGE_RECEIVED`, `SLACK_DIRECT_MESSAGE_RECEIVED`) | Opt-in |
+| New Slack V2 slugs (`SLACK_CHANNEL_MESSAGE_RECEIVED`, `SLACK_DIRECT_MESSAGE_RECEIVED`, `SLACK_MESSAGE_REACTION_ADDED`) | Opt-in |
 | V1 ingress path and all legacy trigger slugs | None — unchanged |
 
 ## What's in V2
@@ -145,12 +145,13 @@ Set **Event Subscriptions → Request URL** in your Slack app to the `webhook_ur
 
 ### 6. Create V2 trigger instances
 
-Two new Slack triggers go live on V2 today, with more to follow on V2 — both for Slack and for other toolkits. The table below maps your existing V1 slugs to the new V2 equivalents:
+Three new Slack triggers go live on V2 today, with more to follow on V2 — both for Slack and for other toolkits. The table below maps your existing V1 slugs to the new V2 equivalents:
 
 | V1 slug (still supported) | V2 replacement | `app_token` required? |
 |---|---|---|
 | `SLACK_RECEIVE_MESSAGE` | `SLACK_CHANNEL_MESSAGE_RECEIVED` | Only for private channels and multi-person DMs; public channels work without it |
 | `SLACK_RECEIVE_DIRECT_MESSAGE` | `SLACK_DIRECT_MESSAGE_RECEIVED` | Always |
+| `SLACK_REACTION_ADDED` | `SLACK_MESSAGE_REACTION_ADDED` | Always (reactions don't carry channel type, so per-user authz runs unconditionally) |
 
 ```bash
 curl -X POST "https://backend.composio.dev/api/v3/trigger_instances/SLACK_CHANNEL_MESSAGE_RECEIVED/upsert" \
