@@ -98,6 +98,38 @@ Errors related to trigger subscriptions.
 See [Triggers Troubleshooting](/docs/troubleshooting/triggers) for more help.
 </Callout>
 
+## Specific error codes
+
+When the API response includes a numeric `code` in the error object, you can look it up here for a focused explanation and the canonical fix. The `suggested_fix` field on each error response also points back to this section.
+
+### Error 600
+
+`ConnectedAccount_BadRequest`. Returned by `POST /api/v3/connected_accounts` (HTTP 400) when the request is for a **Composio-managed auth config on a redirectable OAuth scheme** (OAuth1, OAuth2, DCR_OAUTH). This combination is being retired on the legacy create endpoint — **2026-05-08** for new organizations and **2026-07-03** for all remaining organizations.
+
+**Example response:**
+
+```json
+{
+  "error": {
+    "message": "Creating connections on this endpoint for Composio-managed OAuth auth configs is no longer supported. Use POST /api/v3/connected_accounts/link instead.",
+    "code": 600,
+    "slug": "ConnectedAccount_BadRequest",
+    "status": 400,
+    "request_id": "...",
+    "suggested_fix": "Call POST /api/v3/connected_accounts/link with the same auth_config_id and user_id to get a redirect URL for the end user."
+  }
+}
+```
+
+**Fix.** Switch the call to `POST /api/v3/connected_accounts/link`, or use the SDK helper:
+
+- TypeScript: `composio.connectedAccounts.link(userId, authConfigId, options?)` (replaces `composio.connectedAccounts.initiate(...)`).
+- Python: `composio.connected_accounts.link(user_id, auth_config_id, **options)` (replaces `composio.connected_accounts.initiate(...)`).
+
+The return shape is the same — both methods give you a `redirect_url` (or `redirectUrl`) and a `wait_for_connection()` / `waitForConnection()` helper. See the [migration guide](/docs/auth-configuration/migrating-initiate-to-link) and the [changelog entry](/docs/changelog/2026/04/24).
+
+**Not affected by error 600:** custom auth configs (your own OAuth app) and non-OAuth schemes (API key, bearer token, basic auth) continue to work on `POST /api/v3/connected_accounts` indefinitely.
+
 ## Rate limiting
 
 When you hit rate limits, you'll receive a `429` status code. See [Rate Limits](/reference/rate-limits) for details on limits by plan and best practices for handling rate limit errors.
