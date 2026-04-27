@@ -11,7 +11,7 @@ Webhook Triggers V2 introduces a first-class `webhook_endpoints` resource with a
 | Change | Action required |
 |---|---|
 | New `webhook_endpoints` API | None (opt-in) |
-| New ingress path `/api/v3/webhook_ingress/{toolkit}/{we_*}/trigger_event` | None (opt-in) |
+| New ingress path `/api/v3.1/webhook_ingress/{toolkit}/{we_*}/trigger_event` | None (opt-in) |
 | Ingress-level signature verification | Automatic for V2 endpoints |
 | New Slack V2 slugs (`SLACK_CHANNEL_MESSAGE_RECEIVED`, `SLACK_DIRECT_MESSAGE_RECEIVED`, `SLACK_MESSAGE_REACTION_ADDED`) | Opt-in |
 | V1 ingress path and all legacy trigger slugs | None — unchanged |
@@ -21,7 +21,7 @@ Webhook Triggers V2 introduces a first-class `webhook_endpoints` resource with a
 **Dedicated endpoint per OAuth app.** Each `webhook_endpoint` is keyed by `(toolkit_slug, project_id, client_id)` and exposes its own URL containing a random `we_*` identifier:
 
 ```
-https://backend.composio.dev/api/v3/webhook_ingress/{toolkit}/{we_xxx}/trigger_event
+https://backend.composio.dev/api/v3.1/webhook_ingress/{toolkit}/{we_xxx}/trigger_event
 ```
 
 This replaces V1's shared `/handle` URL per toolkit. Events arriving on a V2 URL are fanned out only to trigger instances on that endpoint's project.
@@ -38,18 +38,18 @@ All endpoints require a project API key (`x-api-key`).
 
 | Method | Path | Purpose |
 |---|---|---|
-| `GET` | `/api/v3/webhook_endpoints/schema?toolkit_slug={slug}` | List required setup fields for a toolkit |
-| `POST` | `/api/v3/webhook_endpoints` | Create an endpoint (idempotent per `toolkit_slug + client_id` within a project) |
-| `GET` | `/api/v3/webhook_endpoints` | List endpoints in the current project |
-| `GET` | `/api/v3/webhook_endpoints/{id}` | Get a single endpoint, including `verified_at` |
-| `POST` | `/api/v3/webhook_endpoints/{id}` | Replace `setup_data` |
-| `PATCH` | `/api/v3/webhook_endpoints/{id}` | Update one or more fields in `setup_data` |
+| `GET` | `/api/v3.1/webhook_endpoints/schema?toolkit_slug={slug}` | List required setup fields for a toolkit |
+| `POST` | `/api/v3.1/webhook_endpoints` | Create an endpoint (idempotent per `toolkit_slug + client_id` within a project) |
+| `GET` | `/api/v3.1/webhook_endpoints` | List endpoints in the current project |
+| `GET` | `/api/v3.1/webhook_endpoints/{id}` | Get a single endpoint, including `verified_at` |
+| `POST` | `/api/v3.1/webhook_endpoints/{id}` | Replace `setup_data` |
+| `PATCH` | `/api/v3.1/webhook_endpoints/{id}` | Update one or more fields in `setup_data` |
 
 Provider events are posted to:
 
 | Method | Path |
 |---|---|
-| `POST` | `/api/v3/webhook_ingress/{toolkit_slug}/{webhook_endpoint_nano_id}/trigger_event` |
+| `POST` | `/api/v3.1/webhook_ingress/{toolkit_slug}/{webhook_endpoint_nano_id}/trigger_event` |
 
 ## Migration walkthrough (Slack)
 
@@ -58,7 +58,7 @@ Slack is the first toolkit on V2. The same flow applies to every toolkit added l
 ### 1. Discover required fields
 
 ```bash
-curl "https://backend.composio.dev/api/v3/webhook_endpoints/schema?toolkit_slug=slack" \
+curl "https://backend.composio.dev/api/v3.1/webhook_endpoints/schema?toolkit_slug=slack" \
   -H "x-api-key: YOUR_API_KEY"
 ```
 
@@ -87,7 +87,7 @@ Sample response:
 ### 2. Create the endpoint
 
 ```bash
-curl -X POST "https://backend.composio.dev/api/v3/webhook_endpoints" \
+curl -X POST "https://backend.composio.dev/api/v3.1/webhook_endpoints" \
   -H "x-api-key: YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{ "toolkit_slug": "slack", "client_id": "YOUR_SLACK_CLIENT_ID" }'
@@ -100,7 +100,7 @@ Sample response:
   "id": "we_abc123",
   "toolkit_slug": "slack",
   "client_id": "YOUR_SLACK_CLIENT_ID",
-  "webhook_url": "https://backend.composio.dev/api/v3/webhook_ingress/slack/we_abc123/trigger_event",
+  "webhook_url": "https://backend.composio.dev/api/v3.1/webhook_ingress/slack/we_abc123/trigger_event",
   "data": null,
   "created_at": "2026-04-24T10:00:00.000Z"
 }
@@ -111,7 +111,7 @@ Hold on to two values from the response: `id` (used as `ENDPOINT_ID` in the next
 ### 3. Store the signing secret
 
 ```bash
-curl -X PATCH "https://backend.composio.dev/api/v3/webhook_endpoints/ENDPOINT_ID" \
+curl -X PATCH "https://backend.composio.dev/api/v3.1/webhook_endpoints/ENDPOINT_ID" \
   -H "x-api-key: YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{ "data": { "webhook_signing_secret": "YOUR_SIGNING_SECRET" } }'
@@ -131,7 +131,7 @@ The app-level token is what lets Composio resolve per-user authorization for Sla
 Skip this step if you only need public-channel messages today — you can add the token later.
 
 ```bash
-curl -X PATCH "https://backend.composio.dev/api/v3/webhook_endpoints/ENDPOINT_ID" \
+curl -X PATCH "https://backend.composio.dev/api/v3.1/webhook_endpoints/ENDPOINT_ID" \
   -H "x-api-key: YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{ "data": { "app_token": "xapp-..." } }'
@@ -154,7 +154,7 @@ Three new Slack triggers go live on V2 today, with more to follow on V2 — both
 | `SLACK_REACTION_ADDED` | `SLACK_MESSAGE_REACTION_ADDED` | Always (reactions don't carry channel type, so per-user authz runs unconditionally) |
 
 ```bash
-curl -X POST "https://backend.composio.dev/api/v3/trigger_instances/SLACK_CHANNEL_MESSAGE_RECEIVED/upsert" \
+curl -X POST "https://backend.composio.dev/api/v3.1/trigger_instances/SLACK_CHANNEL_MESSAGE_RECEIVED/upsert" \
   -H "x-api-key: YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
