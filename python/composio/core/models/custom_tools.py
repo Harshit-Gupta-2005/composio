@@ -131,9 +131,33 @@ class CustomTool:
         return account.state.val.model_dump()
 
     def __call__(self, **kwargs: t.Any) -> t.Any:
-        """Call the custom tool."""
-        user_id = kwargs.pop("user_id", None) or "default"
-        request = self.request_model.model_validate(kwargs)
+        """Call the custom tool with the default ``user_id``.
+
+        ``kwargs`` is treated as untrusted LLM-supplied input. ``user_id`` is
+        therefore NOT extracted from ``kwargs``: allowing an LLM (or
+        prompt-injection input) to pick which tenant's ``user_id`` is used to
+        look up OAuth credentials would let it read another tenant's tokens
+        (CWE-639, see SEC-365). Any ``user_id`` key in ``kwargs`` is dropped
+        before the request body is validated.
+
+        To use a non-default ``user_id``, call through
+        ``CustomTools.execute(slug, request, user_id)`` (the canonical entry
+        point), which sanitizes the request dict and supplies the trusted
+        ``user_id`` from server-side context.
+        """
+        kwargs.pop("user_id", None)
+        return self._invoke(user_id="default", request_kwargs=kwargs)
+
+    def _invoke(self, user_id: str, request_kwargs: t.Dict[str, t.Any]) -> t.Any:
+        """Trusted internal entry point.
+
+        Called by ``CustomTools.execute`` after ``request_kwargs`` has been
+        sanitized at the LLM trust boundary. ``user_id`` is supplied here as
+        a positional / keyword argument that is structurally separate from
+        the ``request_kwargs`` dict, so an LLM-controlled key inside the
+        dict cannot be promoted to override the trusted value.
+        """
+        request = self.request_model.model_validate(request_kwargs)
         if self.toolkit is None:
             return t.cast(CustomToolProtocol, self.f)(request=request)
 
@@ -203,8 +227,21 @@ class CustomTools:
         request: t.Dict,
         user_id: t.Optional[str] = None,
     ) -> t.Dict:
-        """Execute a custom tool."""
+        """Execute a custom tool.
+
+        ``request`` is the LLM-supplied argument dict and is treated as
+        untrusted: any ``user_id`` key it contains is stripped here so that
+        only the explicit ``user_id`` parameter (sourced from trusted
+        server-side context) is used to look up auth credentials. Without
+        this sanitization an LLM (or prompt-injection input) could specify
+        another tenant's ``user_id`` and read their OAuth tokens
+        (CWE-639, see SEC-365).
+        """
         custom_tool = self.get(slug)
         if custom_tool is None:
             raise NotFoundError(f"Custom tool with slug {slug} not found")
-        return custom_tool(**request, user_id=user_id)
+        sanitized_request = {k: v for k, v in request.items() if k != "user_id"}
+        return custom_tool._invoke(
+            user_id=user_id or "default",
+            request_kwargs=sanitized_request,
+        )
