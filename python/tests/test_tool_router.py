@@ -564,6 +564,29 @@ class TestToolRouter:
         kwargs = mock_client.tool_router.session.create.call_args.kwargs
         assert "sandbox_size" not in kwargs["workbench"]
 
+    def test_create_session_with_multi_account(self, tool_router, mock_client):
+        """multi_account is forwarded on the wire when set, omitted otherwise."""
+        # Forwarded as-is when provided (TypedDict already uses snake_case keys).
+        tool_router.create(
+            user_id="user_123",
+            multi_account={
+                "enable": True,
+                "max_accounts_per_toolkit": 3,
+                "require_explicit_selection": True,
+            },
+        )
+        kwargs = mock_client.tool_router.session.create.call_args.kwargs
+        assert kwargs["multi_account"] == {
+            "enable": True,
+            "max_accounts_per_toolkit": 3,
+            "require_explicit_selection": True,
+        }
+
+        # Omitted entirely when not provided.
+        tool_router.create(user_id="user_123")
+        kwargs = mock_client.tool_router.session.create.call_args.kwargs
+        assert "multi_account" not in kwargs
+
     def test_create_session_complex_config(self, tool_router, mock_client):
         """Test creating a session with complex configuration."""
         session = tool_router.create(
@@ -580,6 +603,7 @@ class TestToolRouter:
             auth_configs={"github": "ac_xxx"},
             connected_accounts={"slack": "ca_yyy"},
             workbench={"enable_proxy_execution": True, "auto_offload_threshold": 600},
+            multi_account={"enable": True, "max_accounts_per_toolkit": 5},
         )
 
         assert session.session_id == "session_123"
@@ -596,6 +620,10 @@ class TestToolRouter:
         assert "auth_configs" in kwargs
         assert "connected_accounts" in kwargs
         assert "workbench" in kwargs
+        assert kwargs["multi_account"] == {
+            "enable": True,
+            "max_accounts_per_toolkit": 5,
+        }
 
     def test_create_session_with_experimental_config(self, tool_router, mock_client):
         """Test creating a session with experimental configuration."""
