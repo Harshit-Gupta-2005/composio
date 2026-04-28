@@ -37,6 +37,8 @@ def mock_client():
     ]
     mock_session_response.config = MagicMock()
     mock_session_response.config.user_id = "user_123"
+    mock_session_response.config.preload = MagicMock()
+    mock_session_response.config.preload.tools = []
     mock_session_response.experimental = None  # Default to None
 
     client.tool_router.session.create.return_value = mock_session_response
@@ -587,6 +589,21 @@ class TestToolRouter:
         kwargs = mock_client.tool_router.session.create.call_args.kwargs
         assert "multi_account" not in kwargs
 
+    def test_create_session_with_preload(self, tool_router, mock_client):
+        """preload is forwarded and exposed on the session."""
+        mock_client.tool_router.session.create.return_value.config.preload.tools = [
+            "GMAIL_FETCH_EMAILS"
+        ]
+
+        session = tool_router.create(
+            user_id="user_123",
+            preload={"tools": ["GMAIL_FETCH_EMAILS"]},
+        )
+
+        kwargs = mock_client.tool_router.session.create.call_args.kwargs
+        assert kwargs["preload"] == {"tools": ["GMAIL_FETCH_EMAILS"]}
+        assert session.preload.tools == ["GMAIL_FETCH_EMAILS"]
+
     def test_create_session_complex_config(self, tool_router, mock_client):
         """Test creating a session with complex configuration."""
         session = tool_router.create(
@@ -771,6 +788,10 @@ class TestToolRouter:
 
     def test_use_session(self, tool_router, mock_client):
         """Test retrieving an existing session."""
+        mock_client.tool_router.session.retrieve.return_value.config.preload.tools = [
+            "GMAIL_FETCH_EMAILS"
+        ]
+
         session = tool_router.use(session_id="session_123")
 
         # Verify session properties
@@ -788,6 +809,7 @@ class TestToolRouter:
         assert callable(session.tools)
         assert callable(session.authorize)
         assert callable(session.toolkits)
+        assert session.preload.tools == ["GMAIL_FETCH_EMAILS"]
 
         # Verify retrieve was called
         mock_client.tool_router.session.retrieve.assert_called_once_with("session_123")
@@ -818,6 +840,28 @@ class TestToolRouter:
 
         with pytest.raises(Exception, match="Session not found"):
             tool_router.use(session_id="invalid_session")
+
+    def test_session_execute_with_account(self, tool_router, mock_client):
+        """session.execute forwards account for direct app tool execution."""
+        mock_execute_response = MagicMock()
+        mock_execute_response.data = {"ok": True}
+        mock_execute_response.error = None
+        mock_execute_response.log_id = "log_123"
+        mock_client.tool_router.session.execute.return_value = mock_execute_response
+
+        session = tool_router.create(user_id="user_123")
+        session.execute(
+            "GMAIL_FETCH_EMAILS",
+            arguments={"max_results": 1},
+            account="work",
+        )
+
+        mock_client.tool_router.session.execute.assert_called_once_with(
+            session_id="session_123",
+            tool_slug="GMAIL_FETCH_EMAILS",
+            arguments={"max_results": 1},
+            account="work",
+        )
 
     def test_authorize_function(self, tool_router, mock_client):
         """Test the authorize function returned by session."""
@@ -1025,6 +1069,8 @@ class TestToolRouter:
 
         # Verify provider's wrap_tools was called
         mock_provider.wrap_tools.assert_called_once()
+        wrapped_tools = mock_provider.wrap_tools.call_args.kwargs["tools"]
+        assert [tool.slug for tool in wrapped_tools] == ["GMAIL_FETCH_EMAILS"]
         assert result == "mocked-wrapped-tools"
 
     @patch("composio.core.models.tools.Tools")
@@ -1294,17 +1340,12 @@ class TestToolRouterExecution:
         call_args = mock_tools_instance._wrap_execute_tool_for_tool_router.call_args
         assert call_args.kwargs["session_id"] == "session_123"
 
-    def test_execute_meta_endpoint_called(
-        self, tool_router, mock_client, mock_provider
-    ):
-        """Test that execute_meta endpoint is called when executing tools."""
-        # Setup execute_meta response
+    def test_execute_endpoint_called(self, tool_router, mock_client, mock_provider):
+        """Test that session execute endpoint is called when executing tools."""
         mock_execute_response = MagicMock()
         mock_execute_response.data = {"result": "success"}
         mock_execute_response.error = None
-        mock_client.tool_router.session.execute_meta.return_value = (
-            mock_execute_response
-        )
+        mock_client.tool_router.session.execute.return_value = mock_execute_response
 
         # Create a real Tools instance to test the execute function
         from composio.core.models.tools import Tools as RealTools
@@ -1321,10 +1362,10 @@ class TestToolRouterExecution:
         # Execute the tool
         result = execute_fn("GMAIL_SEND_EMAIL", {"to": "test@example.com"})
 
-        # Verify execute_meta was called with correct parameters
-        mock_client.tool_router.session.execute_meta.assert_called_once_with(
+        # Verify execute was called with correct parameters
+        mock_client.tool_router.session.execute.assert_called_once_with(
             session_id="session_123",
-            slug="GMAIL_SEND_EMAIL",
+            tool_slug="GMAIL_SEND_EMAIL",
             arguments={"to": "test@example.com"},
         )
 
@@ -1337,13 +1378,10 @@ class TestToolRouterExecution:
         self, tool_router, mock_client, mock_provider
     ):
         """Test that modifiers are applied before and after tool execution."""
-        # Setup execute_meta response
         mock_execute_response = MagicMock()
         mock_execute_response.data = {"result": "success"}
         mock_execute_response.error = None
-        mock_client.tool_router.session.execute_meta.return_value = (
-            mock_execute_response
-        )
+        mock_client.tool_router.session.execute.return_value = mock_execute_response
 
         # Create modifier functions
         def before_modifier(tool, toolkit, params):
@@ -1382,9 +1420,9 @@ class TestToolRouterExecution:
         # Execute the tool
         result = execute_fn("GMAIL_SEND_EMAIL", {"to": "test@example.com"})
 
-        # Verify execute_meta was called with modified arguments
-        mock_client.tool_router.session.execute_meta.assert_called_once()
-        call_args = mock_client.tool_router.session.execute_meta.call_args
+        # Verify execute was called with modified arguments
+        mock_client.tool_router.session.execute.assert_called_once()
+        call_args = mock_client.tool_router.session.execute.call_args
         assert call_args.kwargs["arguments"] == {"to": "modified@example.com"}
 
         # Verify result was modified by after_execute
@@ -1392,13 +1430,10 @@ class TestToolRouterExecution:
 
     def test_execute_tool_error_handling(self, tool_router, mock_client, mock_provider):
         """Test that tool execution errors are handled correctly."""
-        # Setup execute_meta to return an error
         mock_execute_response = MagicMock()
         mock_execute_response.data = {}
         mock_execute_response.error = "Authentication failed"
-        mock_client.tool_router.session.execute_meta.return_value = (
-            mock_execute_response
-        )
+        mock_client.tool_router.session.execute.return_value = mock_execute_response
 
         # Create a real execute function
         from composio.core.models.tools import Tools as RealTools

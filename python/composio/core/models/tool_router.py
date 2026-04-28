@@ -27,7 +27,10 @@ from composio.core.models.custom_tool_types import (
     CustomTool,
     CustomToolsMap,
 )
-from composio.core.models.tool_router_session import ToolRouterSession
+from composio.core.models.tool_router_session import (
+    ToolRouterSession,
+    ToolRouterSessionPreloadConfig,
+)
 from composio.core.models.tool_router_session_files import ToolRouterSessionFilesMount
 from composio.core.provider import TTool, TToolCollection
 from composio.core.provider.base import BaseProvider
@@ -204,6 +207,17 @@ class ToolRouterMultiAccountConfig(te.TypedDict, total=False):
     enable: bool
     max_accounts_per_toolkit: int
     require_explicit_selection: bool
+
+
+class ToolRouterPreloadConfig(te.TypedDict, total=False):
+    """Configuration for tools preloaded into a tool router session.
+
+    Attributes:
+        tools: Tool slugs to expose directly in ``session.tools()`` and MCP
+               tool lists without first calling search.
+    """
+
+    tools: t.List[str]
 
 
 class ToolRouterAssistivePromptConfig(te.TypedDict, total=False):
@@ -482,6 +496,7 @@ class ToolRouter(Resource, t.Generic[TTool, TToolCollection]):
         connected_accounts: t.Optional[t.Dict[str, str]] = None,
         workbench: t.Optional[ToolRouterWorkbenchConfig] = None,
         multi_account: t.Optional[ToolRouterMultiAccountConfig] = None,
+        preload: t.Optional[ToolRouterPreloadConfig] = None,
         experimental: t.Optional[ToolRouterExperimentalConfig] = None,
     ) -> ToolRouterSession[TTool, TToolCollection]:
         """
@@ -563,6 +578,10 @@ class ToolRouter(Resource, t.Generic[TTool, TToolCollection]):
                             - 'require_explicit_selection' (bool): When True, require explicit
                               account selection when multiple accounts are connected.
                             Example: {'enable': True, 'max_accounts_per_toolkit': 3}
+        :param preload: Optional preload configuration. Dict with:
+                        - 'tools' (List[str]): Tool slugs to expose directly in
+                          session.tools() and MCP tool lists.
+                        Example: {'tools': ['GMAIL_FETCH_EMAILS']}
         :param experimental: Optional experimental configuration (ToolRouterExperimentalConfig).
                             Note: These features are experimental and may change.
                             Dict with:
@@ -773,6 +792,9 @@ class ToolRouter(Resource, t.Generic[TTool, TToolCollection]):
         if multi_account is not None:
             create_params["multi_account"] = multi_account
 
+        if preload is not None:
+            create_params["preload"] = preload
+
         # Build experimental config
         # Map SDK's experimental.assistive_prompt.user_timezone to API's
         # experimental.assistive_prompt_config.user_timezone
@@ -851,6 +873,9 @@ class ToolRouter(Resource, t.Generic[TTool, TToolCollection]):
             experimental=experimental_response,
             custom_tools_map=custom_tools_map,
             user_id=user_id,
+            preload=ToolRouterSessionPreloadConfig(
+                tools=list(session.config.preload.tools)
+            ),
         )
 
     def use(self, session_id: str) -> ToolRouterSession[TTool, TToolCollection]:
@@ -905,6 +930,9 @@ class ToolRouter(Resource, t.Generic[TTool, TToolCollection]):
                 url=session.mcp.url,
             ),
             experimental=experimental_response,
+            preload=ToolRouterSessionPreloadConfig(
+                tools=list(session.config.preload.tools)
+            ),
         )
 
 
@@ -925,8 +953,10 @@ __all__ = [
     "ToolRouterWorkbenchConfig",
     "SandboxSize",
     "ToolRouterMultiAccountConfig",
+    "ToolRouterPreloadConfig",
     "ToolRouterExperimentalConfig",
     "ToolRouterAssistivePromptConfig",
+    "ToolRouterSessionPreloadConfig",
     "ToolkitConnectionState",
     "ToolkitConnectionsDetails",
     "ToolRouterMCPServerConfig",

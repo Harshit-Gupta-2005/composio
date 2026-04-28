@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import typing as t
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 
 from composio_client import omit
 from composio_client.types.tool_router.session_execute_response import (
@@ -50,6 +51,13 @@ COMPOSIO_MULTI_EXECUTE_TOOL = "COMPOSIO_MULTI_EXECUTE_TOOL"
 MAX_PARALLEL_WORKERS = 5
 
 
+@dataclass
+class ToolRouterSessionPreloadConfig:
+    """Preloaded tools configured for a tool router session."""
+
+    tools: t.List[str]
+
+
 class ToolRouterSession(t.Generic[TTool, TToolCollection]):
     """
     Tool router session containing session information and methods.
@@ -85,6 +93,7 @@ class ToolRouterSession(t.Generic[TTool, TToolCollection]):
         experimental: "ToolRouterSessionExperimental",
         custom_tools_map: t.Optional[CustomToolsMap] = None,
         user_id: t.Optional[str] = None,
+        preload: t.Optional[ToolRouterSessionPreloadConfig] = None,
     ) -> None:
         self._client = client
         self._provider = provider
@@ -95,6 +104,7 @@ class ToolRouterSession(t.Generic[TTool, TToolCollection]):
         self.session_id = session_id
         self.mcp = mcp
         self.experimental = experimental
+        self.preload = preload or ToolRouterSessionPreloadConfig(tools=[])
         self._custom_tools_map = custom_tools_map
         self._user_id = user_id
 
@@ -119,7 +129,7 @@ class ToolRouterSession(t.Generic[TTool, TToolCollection]):
         tools_model: t.Any,
         modifiers: t.Optional["Modifiers"] = None,
     ) -> t.Callable[..., t.Any]:
-        """Backend execute_meta wrapper with this session's file-upload settings."""
+        """Backend execute wrapper with this session's file-upload settings."""
         return tools_model._wrap_execute_tool_for_tool_router(
             session_id=self.session_id,
             modifiers=modifiers,
@@ -533,6 +543,7 @@ class ToolRouterSession(t.Generic[TTool, TToolCollection]):
         tool_slug: str,
         *,
         arguments: t.Optional[t.Dict[str, t.Any]] = None,
+        account: t.Optional[str] = None,
     ) -> SessionExecuteResponse:
         """
         Execute a tool within the session.
@@ -540,6 +551,10 @@ class ToolRouterSession(t.Generic[TTool, TToolCollection]):
         For custom tools, accepts the original slug (e.g. "GREP") or the
         full slug (e.g. "LOCAL_GREP"). Custom tools are executed in-process;
         remote tools are sent to the Composio backend.
+
+        :param account: Account ID or alias for direct app tool execution in
+            multi-account sessions. Helper/meta tools either ignore this
+            top-level field or define their own account-selection fields.
 
         Both paths return a ``SessionExecuteResponse`` with ``data``,
         ``error``, and ``log_id`` attributes.
@@ -563,6 +578,7 @@ class ToolRouterSession(t.Generic[TTool, TToolCollection]):
             session_id=self.session_id,
             tool_slug=tool_slug,
             arguments=arguments if arguments is not None else omit,
+            account=account if account is not None else omit,
         )
 
     def custom_tools(
