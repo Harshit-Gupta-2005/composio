@@ -13,6 +13,21 @@ import type {
 export const MCPServerTypeSchema = z.enum(['http', 'sse']);
 export type MCPServerType = z.infer<typeof MCPServerTypeSchema>;
 
+/**
+ * Sandbox compute tier for the tool router workbench.
+ *
+ * | Tier     | vCPU | RAM   |
+ * | -------- | ---- | ----- |
+ * | standard | 1    | 1 GB  |
+ * | medium   | 2    | 2 GB  |
+ * | large    | 4    | 4 GB  |
+ * | xlarge   | 8    | 8 GB  |
+ *
+ * Defaults to `standard` server-side when omitted.
+ */
+export const SandboxSizeSchema = z.enum(['standard', 'medium', 'large', 'xlarge']);
+export type SandboxSize = z.infer<typeof SandboxSizeSchema>;
+
 // manage connections
 export const ToolRouterConfigManageConnectionsSchema = z
   .object({
@@ -208,6 +223,9 @@ export const ToolRouterCreateSessionConfigSchema = z
           .describe(
             'The auto offload threshold in characters for the tool execution to be moved into workbench'
           ),
+        sandboxSize: SandboxSizeSchema.optional().describe(
+          'Sandbox compute tier for the workbench. One of "standard" (1 vCPU / 1 GB), "medium" (2 vCPU / 2 GB), "large" (4 vCPU / 4 GB), or "xlarge" (8 vCPU / 8 GB). Defaults to "standard" server-side. Changing this on an existing session recreates the sandbox on next access; the session\'s in-memory FS is lost, but /mnt/files/ persists.'
+        ),
       })
       .optional()
       .describe('The workbench config for the tool router session'),
@@ -282,6 +300,7 @@ export const ToolRouterCreateSessionConfigSchema = z
  * @param {boolean} [workbench.enable] - Whether to enable the workbench entirely. Defaults to true. When false, no code execution tools are available.
  * @param {boolean} [workbench.enableProxyExecution] - Whether to enable proxy execution
  * @param {number} [workbench.autoOffloadThreshold] - Auto offload threshold in characters for moving execution to workbench
+ * @param {SandboxSize} [workbench.sandboxSize] - Sandbox compute tier: 'standard' (1 vCPU/1 GB, default), 'medium' (2 vCPU/2 GB), 'large' (4 vCPU/4 GB), or 'xlarge' (8 vCPU/8 GB)
  * @param {object} [multiAccount] - Multi-account configuration for this session
  * @param {boolean} [multiAccount.enable] - When true, enables multi-account mode. Falls back to org/project-level config when not set.
  * @param {number} [multiAccount.maxAccountsPerToolkit] - Max connected accounts per toolkit (2-10, default 5)

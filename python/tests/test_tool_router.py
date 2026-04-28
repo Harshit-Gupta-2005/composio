@@ -548,6 +548,22 @@ class TestToolRouter:
         assert kwargs["workbench"]["enable_proxy_execution"] is False
         assert kwargs["workbench"]["auto_offload_threshold"] == 20000
 
+    def test_create_session_with_workbench_sandbox_size(self, tool_router, mock_client):
+        """sandbox_size is forwarded on the wire when set, omitted otherwise."""
+        tool_router.create(
+            user_id="user_123",
+            workbench={"sandbox_size": "large"},
+        )
+        kwargs = mock_client.tool_router.session.create.call_args.kwargs
+        assert kwargs["workbench"]["sandbox_size"] == "large"
+
+        tool_router.create(
+            user_id="user_123",
+            workbench={"enable_proxy_execution": True},
+        )
+        kwargs = mock_client.tool_router.session.create.call_args.kwargs
+        assert "sandbox_size" not in kwargs["workbench"]
+
     def test_create_session_complex_config(self, tool_router, mock_client):
         """Test creating a session with complex configuration."""
         session = tool_router.create(

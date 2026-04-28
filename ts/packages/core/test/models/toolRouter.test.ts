@@ -1060,6 +1060,25 @@ describe('ToolRouter', () => {
           },
         });
       });
+
+      it('forwards sandboxSize as snake_case sandbox_size on the wire', async () => {
+        mockClient.toolRouter.session.create.mockResolvedValueOnce(mockSessionCreateResponse);
+
+        await toolRouter.create(userId, {
+          workbench: { sandboxSize: 'large' },
+        });
+
+        const payload = mockClient.toolRouter.session.create.mock.calls[0]?.[0];
+        expect(payload?.workbench?.sandbox_size).toBe('large');
+      });
+
+      it('rejects an invalid sandboxSize value via the zod schema', async () => {
+        await expect(
+          toolRouter.create(userId, {
+            workbench: { sandboxSize: 'huge' },
+          } as unknown as ToolRouterCreateSessionConfig)
+        ).rejects.toThrow();
+      });
     });
 
     // describe('complex configuration combinations', () => {

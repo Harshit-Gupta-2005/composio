@@ -37,6 +37,18 @@ ToolRouterTag = t.Literal[
     "readOnlyHint", "destructiveHint", "idempotentHint", "openWorldHint"
 ]
 
+# Type alias for sandbox compute tier on the workbench
+# +----------+------+------+
+# | Tier     | vCPU | RAM  |
+# +----------+------+------+
+# | standard | 1    | 1 GB |
+# | medium   | 2    | 2 GB |
+# | large    | 4    | 4 GB |
+# | xlarge   | 8    | 8 GB |
+# +----------+------+------+
+# Defaults to "standard" server-side when omitted.
+SandboxSize = t.Literal["standard", "medium", "large", "xlarge"]
+
 
 class ToolRouterToolkitsEnableConfig(te.TypedDict, total=False):
     """Configuration for enabling specific toolkits in tool router session.
@@ -145,11 +157,18 @@ class ToolRouterWorkbenchConfig(te.TypedDict, total=False):
         enable_proxy_execution: Whether to allow proxy execute calls in the workbench.
                                 If False, prevents arbitrary HTTP requests.
         auto_offload_threshold: Maximum execution payload size to offload to workbench.
+        sandbox_size: Sandbox compute tier. One of ``"standard"`` (1 vCPU / 1 GB),
+                      ``"medium"`` (2 vCPU / 2 GB), ``"large"`` (4 vCPU / 4 GB), or
+                      ``"xlarge"`` (8 vCPU / 8 GB). Defaults to ``"standard"``
+                      server-side when omitted. Changing this on an existing session
+                      recreates the sandbox on next access; the in-memory FS state
+                      is lost, but the ``/mnt/files/`` mount persists.
     """
 
     enable: bool
     enable_proxy_execution: bool
     auto_offload_threshold: int
+    sandbox_size: SandboxSize
 
 
 class ToolRouterManageConnectionsConfig(te.TypedDict, total=False):
@@ -529,8 +548,12 @@ class ToolRouter(Resource, t.Generic[TTool, TToolCollection]):
                            calls in the workbench. If False, prevents arbitrary HTTP requests.
                          - 'auto_offload_threshold' (int): Maximum execution payload size to
                            offload to workbench.
+                         - 'sandbox_size' (SandboxSize): Sandbox compute tier. One of
+                           'standard' (1 vCPU / 1 GB, default), 'medium' (2 vCPU / 2 GB),
+                           'large' (4 vCPU / 4 GB), or 'xlarge' (8 vCPU / 8 GB).
                          Example: {'enable': False}
                          Example: {'enable_proxy_execution': False, 'auto_offload_threshold': 300}
+                         Example: {'sandbox_size': 'large'}
         :param multi_account: Optional multi-account configuration (ToolRouterMultiAccountConfig).
                             Dict with:
                             - 'enable' (bool): When True, enables multi-account mode.
@@ -741,6 +764,8 @@ class ToolRouter(Resource, t.Generic[TTool, TToolCollection]):
                 execution_payload["auto_offload_threshold"] = int(
                     workbench["auto_offload_threshold"]
                 )
+            if "sandbox_size" in workbench:
+                execution_payload["sandbox_size"] = workbench["sandbox_size"]
 
             if execution_payload:
                 create_params["workbench"] = execution_payload
@@ -898,6 +923,7 @@ __all__ = [
     "ToolRouterConfigTags",
     "ToolRouterManageConnectionsConfig",
     "ToolRouterWorkbenchConfig",
+    "SandboxSize",
     "ToolRouterMultiAccountConfig",
     "ToolRouterExperimentalConfig",
     "ToolRouterAssistivePromptConfig",
