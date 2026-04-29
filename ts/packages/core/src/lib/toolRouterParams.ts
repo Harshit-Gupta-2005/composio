@@ -128,7 +128,7 @@ export const transformToolRouterWorkbenchParams = (
 
 export const transformToolRouterMultiAccountParams = (
   params?: ToolRouterCreateSessionConfig['multiAccount']
-): Record<string, unknown> | undefined => {
+): SessionCreateParams.MultiAccount | undefined => {
   if (!params) {
     return undefined;
   }
