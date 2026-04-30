@@ -10,6 +10,29 @@ Composio executes API calls on behalf of your connected account. All data is enc
 
 For a step-by-step guide on creating and configuring your own Slack OAuth credentials with Composio, see [How to create OAuth credentials for Slack](https://composio.dev/auth/slack).
 
+## Why do users see "This app isn't listed in the Slack Marketplace…" during install?
+
+This appears when a workspace **member** tries to install a non-Marketplace app and the workspace has **"Require apps from Slack Marketplace"** enabled. To resolve, either have a workspace **owner** install/authorize the app, disable **"Require apps from Slack Marketplace"** in the workspace's app management settings, or — recommended — use your own OAuth app credentials. See [How to create OAuth credentials for Slack](https://composio.dev/auth/slack).
+
+## Do I have to be a Workspace Owner to install the app?
+
+Only if the workspace blocks non-Marketplace apps. If **"Require apps from Slack Marketplace"** is enabled, then yes — a workspace owner must install our app. Otherwise, a member may proceed with the install themselves.
+
+## Why am I being asked to submit a request during auth?
+
+The workspace has **"Require approved apps"** enabled, so Slack is asking an admin or owner to approve the install before it can be completed. An admin must approve the request, or the setting must be disabled, before the connection can finish.
+
+## How can a workspace member complete the connection without asking for permissions or approvals?
+
+There are two ways:
+
+- Disable both **"Require apps from Slack Marketplace"** and **"Require approved apps"** in the workspace's app management settings.
+- Use the workspace's own OAuth app credentials (recommended — see below).
+
+## What's the recommended solution for Slack install/approval friction?
+
+Use your own OAuth app credentials. It's the safest option and avoids repeated owner/admin involvement on every install. See [How to create OAuth credentials for Slack](https://composio.dev/auth/slack).
+
 ## What is the difference between Slack and Slackbot toolkits?
 
 Slack is for workspace-level API access (channels, files, users) while Slackbot is bot-centric (messaging, interactivity). Slack triggers cover workspace events; Slackbot covers bot entry points like app mentions, DMs, and slash commands. Slack can post as the app; Slackbot posts as the bot user.
