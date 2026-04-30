@@ -617,6 +617,7 @@ class TestToolRouterSessionCustomTools:
         assert call_args.kwargs["tool_slug"] == "GMAIL_SEND_EMAIL"
         assert call_args.kwargs["arguments"] == {"to": "a@b.com"}
         assert "extra_body" not in call_args.kwargs
+        assert "enable_auto_workbench_offload" not in call_args.kwargs
         # Remote returns client model as-is (backward compat, supports attribute access)
         assert isinstance(result, SessionExecuteResponse)
         assert result.data == {"sent": True}

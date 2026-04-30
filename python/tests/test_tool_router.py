@@ -1369,7 +1369,7 @@ class TestToolRouterExecution:
             session_id="session_123",
             tool_slug="GMAIL_SEND_EMAIL",
             arguments={"to": "test@example.com"},
-            extra_body={"enable_auto_workbench_offload": True},
+            enable_auto_workbench_offload=True,
         )
 
         # Verify result format
@@ -1427,7 +1427,7 @@ class TestToolRouterExecution:
         mock_client.tool_router.session.execute.assert_called_once()
         call_args = mock_client.tool_router.session.execute.call_args
         assert call_args.kwargs["arguments"] == {"to": "modified@example.com"}
-        assert call_args.kwargs["extra_body"] == {"enable_auto_workbench_offload": True}
+        assert call_args.kwargs["enable_auto_workbench_offload"] is True
 
         # Verify result was modified by after_execute
         assert result["data"] == {"modified": True}

@@ -54,14 +54,10 @@ import { telemetry } from '../telemetry/Telemetry';
 import { ComposioConfig } from '../composio';
 import { getToolkitVersion } from '../utils/toolkitVersion';
 import { handleToolExecutionError } from '../errors/ToolErrors';
-import { SessionExecuteParams } from '@composio/client/resources/tool-router.mjs';
+import type { SessionExecuteParams } from '@composio/client/resources/tool-router.mjs';
 import { CONFIG_DEFAULTS } from '../utils/config-defaults';
 import { resolveEffectiveUploadAllowlist } from '../utils/fileDirs';
 import { schemaHasFileUploadable } from '../utils/modifiers/FileToolModifier.utils.neutral';
-
-type SessionExecuteParamsWithAutoOffload = SessionExecuteParams & {
-  enable_auto_workbench_offload?: boolean;
-};
 
 /**
  * This class is used to manage tools in the Composio SDK.
@@ -1040,7 +1036,7 @@ export class Tools<
       });
     }
 
-    const executePayload: SessionExecuteParamsWithAutoOffload = {
+    const executePayload: SessionExecuteParams = {
       tool_slug: toolSlug,
       arguments: modifiedParams,
       // Provider-wrapped session tools are agentic calls, so they opt into
