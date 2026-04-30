@@ -24,7 +24,7 @@ In some cases — yes. For example, when installing non-Marketplace apps, you'll
 
 ## Why am I being asked to submit a request during auth?
 
-Because **Require approved apps** is enabled. Slack is asking for admin/owner approval before completing the install.
+Because **Require approved apps** is enabled in the workspace's **App Management Settings**. Slack is asking for admin/owner approval before completing the install.
 
 ## How can a workspace member complete the connection without asking for permissions or approvals?
 
