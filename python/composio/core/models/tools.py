@@ -523,6 +523,9 @@ class Tools(Resource, t.Generic[TTool, TToolCollection]):
                 session_id=session_id,
                 tool_slug=slug,
                 arguments=processed_arguments,
+                # Provider-wrapped session tools are agentic calls, so they opt into
+                # direct tool offload when the backend session workbench allows it.
+                enable_auto_workbench_offload=True,
             )
 
             # Convert response to standard format

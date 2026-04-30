@@ -54,10 +54,11 @@ import { telemetry } from '../telemetry/Telemetry';
 import { ComposioConfig } from '../composio';
 import { getToolkitVersion } from '../utils/toolkitVersion';
 import { handleToolExecutionError } from '../errors/ToolErrors';
-import { SessionExecuteParams } from '@composio/client/resources/tool-router.mjs';
+import type { SessionExecuteParams } from '@composio/client/resources/tool-router.mjs';
 import { CONFIG_DEFAULTS } from '../utils/config-defaults';
 import { resolveEffectiveUploadAllowlist } from '../utils/fileDirs';
 import { schemaHasFileUploadable } from '../utils/modifiers/FileToolModifier.utils.neutral';
+
 /**
  * This class is used to manage tools in the Composio SDK.
  * It provides methods to list, get, and execute tools.
@@ -1038,6 +1039,9 @@ export class Tools<
     const executePayload: SessionExecuteParams = {
       tool_slug: toolSlug,
       arguments: modifiedParams,
+      // Provider-wrapped session tools are agentic calls, so they opt into
+      // direct tool offload when the backend session workbench allows it.
+      enable_auto_workbench_offload: true,
     };
 
     const response = await this.client.toolRouter.session.execute(body.sessionId, executePayload);

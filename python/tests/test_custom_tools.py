@@ -540,7 +540,11 @@ class TestSessionContextImpl:
             client=mock_client, user_id="u", session_id="s", custom_tools_map=m
         )
         ctx.execute("NONEXISTENT", {"arg": "val"})
-        mock_client.tool_router.session.execute.assert_called_once()
+        mock_client.tool_router.session.execute.assert_called_once_with(
+            session_id="s",
+            tool_slug="NONEXISTENT",
+            arguments={"arg": "val"},
+        )
 
     def test_proxy_execute(self):
         mock_client = MagicMock()
@@ -608,6 +612,12 @@ class TestToolRouterSessionCustomTools:
         s = _session(mock_session_deps)
         result = s.execute("GMAIL_SEND_EMAIL", arguments={"to": "a@b.com"})
         mock_session_deps["client"].tool_router.session.execute.assert_called_once()
+        call_args = mock_session_deps["client"].tool_router.session.execute.call_args
+        assert call_args.kwargs["session_id"] == "s"
+        assert call_args.kwargs["tool_slug"] == "GMAIL_SEND_EMAIL"
+        assert call_args.kwargs["arguments"] == {"to": "a@b.com"}
+        assert "extra_body" not in call_args.kwargs
+        assert "enable_auto_workbench_offload" not in call_args.kwargs
         # Remote returns client model as-is (backward compat, supports attribute access)
         assert isinstance(result, SessionExecuteResponse)
         assert result.data == {"sent": True}

@@ -1038,6 +1038,7 @@ describe('Tools', () => {
         expect(mockClient.toolRouter.session.execute).toHaveBeenCalledWith(sessionId, {
           tool_slug: toolSlug,
           arguments: body.arguments,
+          enable_auto_workbench_offload: true,
         });
         expect(result).toEqual({
           data: { results: true },
@@ -1110,6 +1111,7 @@ describe('Tools', () => {
         expect(mockClient.toolRouter.session.execute).toHaveBeenCalledWith(sessionId, {
           tool_slug: toolSlug,
           arguments: { query: 'modified' },
+          enable_auto_workbench_offload: true,
         });
       });
 
@@ -1253,6 +1255,7 @@ describe('Tools', () => {
         expect(mockClient.toolRouter.session.execute).toHaveBeenCalledWith(sessionId, {
           tool_slug: 'COMPOSIO_TOOL',
           arguments: { query: 'test' },
+          enable_auto_workbench_offload: true,
         });
         expect(result).toEqual({
           data: { results: true },
@@ -1293,6 +1296,7 @@ describe('Tools', () => {
         expect(mockClient.toolRouter.session.execute).toHaveBeenCalledWith(sessionId, {
           tool_slug: 'COMPOSIO_TOOL',
           arguments: { query: 'test', modified: true },
+          enable_auto_workbench_offload: true,
         });
       });
 

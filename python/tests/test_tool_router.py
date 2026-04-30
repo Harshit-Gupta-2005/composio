@@ -1340,8 +1340,10 @@ class TestToolRouterExecution:
         call_args = mock_tools_instance._wrap_execute_tool_for_tool_router.call_args
         assert call_args.kwargs["session_id"] == "session_123"
 
-    def test_execute_endpoint_called(self, tool_router, mock_client, mock_provider):
-        """Test that session execute endpoint is called when executing tools."""
+    def test_execute_endpoint_called_with_auto_offload_opt_in(
+        self, tool_router, mock_client, mock_provider
+    ):
+        """Test that session execute is called for agentic tool execution."""
         mock_execute_response = MagicMock()
         mock_execute_response.data = {"result": "success"}
         mock_execute_response.error = None
@@ -1362,11 +1364,12 @@ class TestToolRouterExecution:
         # Execute the tool
         result = execute_fn("GMAIL_SEND_EMAIL", {"to": "test@example.com"})
 
-        # Verify execute was called with correct parameters
+        # Verify execute was called with direct offload opt-in for agentic calls
         mock_client.tool_router.session.execute.assert_called_once_with(
             session_id="session_123",
             tool_slug="GMAIL_SEND_EMAIL",
             arguments={"to": "test@example.com"},
+            enable_auto_workbench_offload=True,
         )
 
         # Verify result format
@@ -1424,6 +1427,7 @@ class TestToolRouterExecution:
         mock_client.tool_router.session.execute.assert_called_once()
         call_args = mock_client.tool_router.session.execute.call_args
         assert call_args.kwargs["arguments"] == {"to": "modified@example.com"}
+        assert call_args.kwargs["enable_auto_workbench_offload"] is True
 
         # Verify result was modified by after_execute
         assert result["data"] == {"modified": True}
