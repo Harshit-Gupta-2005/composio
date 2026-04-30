@@ -192,7 +192,7 @@ INACTIVE accounts cannot execute tools. Tool execution will fail until the statu
 
 ## Delete accounts
 
-Soft-delete a connected account so it can no longer be used for API calls. This does **not** revoke the upstream OAuth grant — any access or refresh tokens previously issued remain valid with the third-party provider until they expire or the user revokes them. To revoke upstream access, the end user must do so through the provider's account settings (for example, [Google Account Permissions](https://myaccount.google.com/permissions) for Google).
+Permanently remove a connected account:
 
 <Tabs groupId="language" items={['Python', 'TypeScript']} persist>
   <Tab value="Python">
@@ -216,7 +216,7 @@ console.log('Account deleted successfully');
 </Tabs>
 
 <Callout type="warn">
-The Composio record is soft-deleted, but the upstream OAuth grant is unaffected — it remains valid with the provider until the user revokes it from their account settings or the refresh token expires. If the user later reconnects from scratch, the provider will prompt them to re-authorize.
+Deletion is permanent and cannot be undone.
 </Callout>
 
 ## Credential masking
