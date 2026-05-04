@@ -82,14 +82,12 @@ const connectedAccount = await connectionRequest.waitForConnection();
 | `callback_url` / `callbackUrl` | ✓ | ✓ |
 | `alias` | ✓ | ✓ |
 | Pre-filled connection state (`config`) | ✓ — for non-OAuth schemes | Not needed — OAuth uses redirect; non-OAuth users keep `initiate()` |
-| `allow_multiple` / `allowMultiple` | ✓ — guards against duplicates | Not applicable — `link()` always creates a new connection by design |
+| `allow_multiple` / `allowMultiple` | ✓ — guards against duplicates | ✓ — same default (`False`), same exception ([since 2026-04-28](/docs/changelog/2026/04/28)) |
 | Affected by the 2026-05-08 / 2026-07-03 retirement (Composio-managed OAuth) | Yes | No |
 
-## `allow_multiple` is no longer needed
+## `allow_multiple` carries over unchanged
 
-`initiate()` accepts an `allow_multiple` / `allowMultiple` flag that defaults to `False` — calling it twice for the same `(user_id, auth_config_id)` raises an error unless you opt in. `link()` does not need this flag and does not accept it: every call creates a fresh connection request, which is the right default for the common case where a user connects more than one account for the same toolkit (for example, a personal and a work Google account).
-
-If your application logic should keep a user to at most one active connection per auth config, enforce that in your own UI rather than at the SDK layer — for example, list the user's active connections with `composio.connected_accounts.list({...})` before showing the Connect button and skip the call to `link()` when one already exists.
+`link()` accepts `allow_multiple` (Python) / `allowMultiple` (TypeScript) with the same default (`False`), same semantics, and same exception (`ComposioMultipleConnectedAccountsError`) as `initiate()`. Pass the flag through unchanged — see the [SDK link allow_multiple changelog](/docs/changelog/2026/04/28) for the full release note. Requires `@composio/core` v0.8.1+ (TypeScript) or `composio` v0.12.1+ (Python).
 
 ## How to know which auth config is which
 
