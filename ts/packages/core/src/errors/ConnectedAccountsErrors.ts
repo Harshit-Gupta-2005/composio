@@ -77,7 +77,6 @@ export class ComposioLegacyConnectedAccountsEndpointRetiredError extends Composi
       statusCode: 400,
       possibleFixes: options.possibleFixes || [
         'Replace `composio.connectedAccounts.initiate(userId, authConfigId, options)` with `composio.connectedAccounts.link(userId, authConfigId, options)`. The return shape (id, redirectUrl, waitForConnection()) is the same.',
-        'If you relied on the `allowMultiple` guard in initiate(), pre-check existing active connections with `composio.connectedAccounts.list({ userIds, authConfigIds, statuses: [ConnectedAccountStatuses.ACTIVE] })` before calling link().',
         'Migration guide: https://docs.composio.dev/docs/changelog/2026/04/24',
       ],
     });
