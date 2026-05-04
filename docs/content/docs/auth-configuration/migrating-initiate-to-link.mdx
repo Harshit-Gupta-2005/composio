@@ -82,58 +82,14 @@ const connectedAccount = await connectionRequest.waitForConnection();
 | `callback_url` / `callbackUrl` | ✓ | ✓ |
 | `alias` | ✓ | ✓ |
 | Pre-filled connection state (`config`) | ✓ — for non-OAuth schemes | Not needed — OAuth uses redirect; non-OAuth users keep `initiate()` |
-| `allow_multiple` / `allowMultiple` guard | ✓ | ✗ — handle client-side (see below) |
+| `allow_multiple` / `allowMultiple` | ✓ — guards against duplicates | Not applicable — `link()` always creates a new connection by design |
 | Affected by the 2026-05-08 / 2026-07-03 retirement (Composio-managed OAuth) | Yes | No |
 
-## Handling `allow_multiple`
+## `allow_multiple` is no longer needed
 
-`initiate()` rejects a request if an active connected account already exists for `(user_id, auth_config_id)` unless you pass `allow_multiple=True`. `link()` does not have this guard — it always creates a new connection.
+`initiate()` accepts an `allow_multiple` / `allowMultiple` flag that defaults to `False` — calling it twice for the same `(user_id, auth_config_id)` raises an error unless you opt in. `link()` does not need this flag and does not accept it: every call creates a fresh connection request, which is the right default for the common case where a user connects more than one account for the same toolkit (for example, a personal and a work Google account).
 
-If you depend on the duplicate-rejection behavior, replicate it client-side:
-
-<Tabs groupId="language" items={['Python', 'TypeScript']} persist>
-<Tab value="Python">
-```python
-from composio import exceptions
-
-existing = composio.connected_accounts.list(
-    user_ids=["user_123"],
-    auth_config_ids=["ac_abc"],
-    statuses=["ACTIVE"],
-)
-if existing.items and not allow_multiple:
-    raise exceptions.ComposioMultipleConnectedAccountsError(
-        f"Active connection already exists for user_123 in ac_abc"
-    )
-
-connection_request = composio.connected_accounts.link(
-    user_id="user_123",
-    auth_config_id="ac_abc",
-)
-```
-</Tab>
-<Tab value="TypeScript">
-```typescript
-import { ComposioMultipleConnectedAccountsError, ConnectedAccountStatuses } from '@composio/core';
-
-const existing = await composio.connectedAccounts.list({
-  userIds: ['user_123'],
-  authConfigIds: ['ac_abc'],
-  statuses: [ConnectedAccountStatuses.ACTIVE],
-});
-if (existing.items.length > 0 && !allowMultiple) {
-  throw new ComposioMultipleConnectedAccountsError(
-    'Active connection already exists for user_123 in ac_abc'
-  );
-}
-
-const connectionRequest = await composio.connectedAccounts.link(
-  'user_123',
-  'ac_abc'
-);
-```
-</Tab>
-</Tabs>
+If your application logic should keep a user to at most one active connection per auth config, enforce that in your own UI rather than at the SDK layer — for example, list the user's active connections with `composio.connected_accounts.list({...})` before showing the Connect button and skip the call to `link()` when one already exists.
 
 ## How to know which auth config is which
 
@@ -168,42 +124,6 @@ const request = authConfig.isComposioManaged
 </Tabs>
 
 For most integrations the auth config is hard-coded per integration, so you'll know up front which path to use and can drop the branching.
-
-## Detecting the deprecation early
-
-Two server-side signals fire ahead of the cutover so SDK and direct API clients can react before they hit a 400:
-
-1. **SDK warning.** When the up-to-date Composio SDK detects a successful `initiate()` on a redirectable OAuth scheme, it logs a one-time `DeprecationWarning` (Python) / `console.warn` (TS) pointing to this guide. Install or upgrade to the latest SDK version to pick it up.
-2. **HTTP `Deprecation` and `Sunset` headers** ([RFC 8594](https://www.rfc-editor.org/rfc/rfc8594)). Successful responses on the retiring path carry:
-
-   ```
-   Deprecation: true
-   Sunset: Fri, 08 May 2026 00:00:00 GMT
-   Link: <https://docs.composio.dev/docs/changelog/2026/04/24>; rel="deprecation"
-   ```
-
-   Direct HTTP callers can detect these in their response interceptor and surface a deprecation notice in their own logs / dashboards.
-
-## After the cutover
-
-Once your org is past its cutover date, the legacy endpoint returns `400 BadRequest` (error code `600`) for Composio-managed OAuth. The SDK surfaces this as `ComposioLegacyConnectedAccountsEndpointRetiredError` — catch it where you call `initiate()` to keep your error logs readable, then migrate the call to `link()`.
-
-```python
-from composio import exceptions
-
-try:
-    request = composio.connected_accounts.initiate(
-        user_id="user_123",
-        auth_config_id="ac_abc",
-    )
-except exceptions.ComposioLegacyConnectedAccountsEndpointRetiredError:
-    request = composio.connected_accounts.link(
-        user_id="user_123",
-        auth_config_id="ac_abc",
-    )
-```
-
-This is meant as a safety net during migration — the long-term answer is to switch the call site to `link()` outright.
 
 ## Related
 
