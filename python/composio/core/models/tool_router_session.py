@@ -13,6 +13,12 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
 from composio_client import omit
+from composio.client.types import Tool
+from composio_client.types.tool_list_response import (
+    ItemDeprecated,
+    ItemDeprecatedToolkit,
+    ItemToolkit,
+)
 from composio_client.types.tool_router.session_execute_response import (
     SessionExecuteResponse,
 )
@@ -25,6 +31,7 @@ from composio_client.types.tool_router.session_search_response import (
 
 from composio.client import HttpClient
 from composio.core.models.connected_accounts import ConnectionRequest
+from composio.core.models.custom_tool import find_custom_tool_map_entry_by_final_slug
 from composio.core.models.custom_tool_execution import (
     execute_custom_tool,
     find_custom_tool,
@@ -48,6 +55,9 @@ if t.TYPE_CHECKING:
     )
 
 COMPOSIO_MULTI_EXECUTE_TOOL = "COMPOSIO_MULTI_EXECUTE_TOOL"
+DIRECT_CUSTOM_TOOL_DESCRIPTION_PREFIX = (
+    "[Direct tool - call directly, no search or connection check needed beforehand.]"
+)
 MAX_PARALLEL_WORKERS = 5
 
 
@@ -55,7 +65,7 @@ MAX_PARALLEL_WORKERS = 5
 class ToolRouterSessionPreloadConfig:
     """Preloaded tools configured for a tool router session."""
 
-    tools: t.List[str]
+    tools: t.Union[t.List[str], str]
 
 
 class ToolRouterSession(t.Generic[TTool, TToolCollection]):
@@ -94,6 +104,7 @@ class ToolRouterSession(t.Generic[TTool, TToolCollection]):
         custom_tools_map: t.Optional[CustomToolsMap] = None,
         user_id: t.Optional[str] = None,
         preload: t.Optional[ToolRouterSessionPreloadConfig] = None,
+        preloaded_custom_tool_slugs: t.Optional[t.List[str]] = None,
     ) -> None:
         self._client = client
         self._provider = provider
@@ -107,6 +118,7 @@ class ToolRouterSession(t.Generic[TTool, TToolCollection]):
         self.preload = preload or ToolRouterSessionPreloadConfig(tools=[])
         self._custom_tools_map = custom_tools_map
         self._user_id = user_id
+        self._preloaded_custom_tool_slugs = preloaded_custom_tool_slugs or []
 
         # Create singleton session context if custom tools are bound
         self._session_context: t.Optional[SessionContextImpl] = None
@@ -168,6 +180,7 @@ class ToolRouterSession(t.Generic[TTool, TToolCollection]):
             session_id=self.session_id,
             modifiers=modifiers,
         )
+        router_tools = self._add_preloaded_custom_tools(router_tools, modifiers)
 
         for tool in router_tools:
             tool.input_parameters = (
@@ -200,6 +213,95 @@ class ToolRouterSession(t.Generic[TTool, TToolCollection]):
                 execute_tool=execute_fn,
             ),
         )
+
+    def _add_preloaded_custom_tools(
+        self,
+        tools: t.List[Tool],
+        modifiers: t.Optional["Modifiers"],
+    ) -> t.List[Tool]:
+        custom_tools = self._get_preloaded_custom_tool_schemas(modifiers)
+        if not custom_tools:
+            return tools
+
+        existing_slugs = {tool.slug.upper() for tool in tools}
+        appended_tools = [
+            tool for tool in custom_tools if tool.slug.upper() not in existing_slugs
+        ]
+        if not appended_tools:
+            return tools
+
+        return [*tools, *appended_tools]
+
+    def _get_preloaded_custom_tool_schemas(
+        self,
+        modifiers: t.Optional["Modifiers"],
+    ) -> t.List[Tool]:
+        if not self._custom_tools_map or not self._preloaded_custom_tool_slugs:
+            return []
+
+        tools: t.List[Tool] = []
+        for slug in self._preloaded_custom_tool_slugs:
+            entry = find_custom_tool_map_entry_by_final_slug(
+                self._custom_tools_map,
+                slug,
+            )
+            if entry is None:
+                continue
+
+            tool = self._custom_tool_entry_to_tool(entry)
+            if modifiers is not None:
+                tool = t.cast(
+                    Tool,
+                    apply_modifier_by_type(
+                        modifiers=modifiers,
+                        toolkit=tool.toolkit.slug,
+                        tool=tool.slug,
+                        type="schema",
+                        schema=tool,
+                    ),
+                )
+            tools.append(tool)
+
+        return tools
+
+    def _custom_tool_entry_to_tool(self, entry: CustomToolsMapEntry) -> Tool:
+        toolkit_slug = entry.toolkit or "custom"
+        toolkit_name = (
+            self._custom_toolkit_name(toolkit_slug) or entry.toolkit or "Custom"
+        )
+
+        return Tool(
+            available_versions=[],
+            deprecated=ItemDeprecated(
+                available_versions=[],
+                displayName=entry.handle.name,
+                is_deprecated=False,
+                toolkit=ItemDeprecatedToolkit(logo=""),
+                version="latest",
+            ),
+            description=(
+                f"{DIRECT_CUSTOM_TOOL_DESCRIPTION_PREFIX}\n{entry.handle.description}"
+            ),
+            input_parameters=entry.handle.input_schema,
+            is_deprecated=False,
+            name=entry.handle.name,
+            no_auth=entry.handle.extends_toolkit is None,
+            output_parameters=entry.handle.output_schema or {},
+            scopes=[],
+            slug=entry.final_slug,
+            tags=[],
+            toolkit=ItemToolkit(logo="", name=toolkit_name, slug=toolkit_slug),
+            version="latest",
+        )
+
+    def _custom_toolkit_name(self, toolkit_slug: str) -> t.Optional[str]:
+        if self._custom_tools_map is None:
+            return None
+
+        for toolkit in self._custom_tools_map.toolkits or []:
+            if toolkit.slug.lower() == toolkit_slug.lower():
+                return toolkit.name
+        return None
 
     def _create_routing_execute_fn(
         self,

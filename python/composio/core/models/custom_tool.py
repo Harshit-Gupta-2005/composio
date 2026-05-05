@@ -610,6 +610,7 @@ def build_custom_tools_map(
         handle: CustomTool, final_slug: str, toolkit: t.Optional[str]
     ) -> None:
         original_slug = handle.slug.upper()
+        final_slug_key = final_slug.upper()
 
         if len(final_slug) > MAX_SLUG_LENGTH:
             raise ValidationError(
@@ -617,7 +618,7 @@ def build_custom_tools_map(
                 f'"{final_slug}" which exceeds {MAX_SLUG_LENGTH} characters.'
             )
 
-        if final_slug in by_final_slug:
+        if final_slug_key in by_final_slug:
             raise ValidationError(
                 f'Custom tool slug collision: "{final_slug}" is already registered.'
             )
@@ -634,7 +635,7 @@ def build_custom_tools_map(
         entry = CustomToolsMapEntry(
             handle=handle, final_slug=final_slug, toolkit=toolkit
         )
-        by_final_slug[final_slug] = entry
+        by_final_slug[final_slug_key] = entry
         by_original_slug[original_slug] = entry
 
     # Process standalone tools
@@ -716,3 +717,42 @@ def build_custom_tools_map_from_response(
         by_original_slug=by_original_slug,
         toolkits=list(toolkits) if toolkits else None,
     )
+
+
+def find_custom_tool_map_entry_by_final_slug(
+    custom_tools_map: t.Optional[CustomToolsMap],
+    slug: str,
+) -> t.Optional[CustomToolsMapEntry]:
+    """Find a custom tool entry by final slug only."""
+    if custom_tools_map is None:
+        return None
+    return custom_tools_map.by_final_slug.get(slug.upper())
+
+
+def get_preloaded_custom_tool_slugs(
+    tool_router_tools: t.Optional[t.Iterable[str]],
+    custom_tools_map: t.Optional[CustomToolsMap],
+) -> t.List[str]:
+    """Return final custom tool slugs selected by the backend for preload."""
+    if tool_router_tools is None or custom_tools_map is None:
+        return []
+
+    seen: t.Set[str] = set()
+    custom_tool_slugs: t.List[str] = []
+
+    for slug in tool_router_tools:
+        entry = find_custom_tool_map_entry_by_final_slug(
+            custom_tools_map,
+            str(slug),
+        )
+        if entry is None:
+            continue
+
+        final_slug_key = entry.final_slug.upper()
+        if final_slug_key in seen:
+            continue
+
+        seen.add(final_slug_key)
+        custom_tool_slugs.append(entry.final_slug)
+
+    return custom_tool_slugs

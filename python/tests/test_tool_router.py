@@ -3,7 +3,9 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
+from pydantic import BaseModel, Field
 
+from composio.core.models.custom_tool import ExperimentalAPI
 from composio.core.models.tool_router import (
     ToolkitConnectionsDetails,
     ToolkitConnectionState,
@@ -16,6 +18,15 @@ from composio.core.models.tool_router import (
     ToolRouterToolkitsDisableConfig,
     ToolRouterToolkitsEnableConfig,
 )
+from composio.core.models.tool_router_session import (
+    DIRECT_CUSTOM_TOOL_DESCRIPTION_PREFIX,
+)
+
+experimental_api = ExperimentalAPI()
+
+
+class GrepInput(BaseModel):
+    pattern: str = Field(description="Pattern to search for")
 
 
 @pytest.fixture
@@ -604,6 +615,63 @@ class TestToolRouter:
         assert kwargs["preload"] == {"tools": ["GMAIL_FETCH_EMAILS"]}
         assert session.preload.tools == ["GMAIL_FETCH_EMAILS"]
 
+    def test_create_session_with_preload_all(self, tool_router, mock_client):
+        """preload tools='all' is forwarded and exposed on the session."""
+        mock_client.tool_router.session.create.return_value.config.preload.tools = "all"
+
+        session = tool_router.create(
+            user_id="user_123",
+            preload={"tools": "all"},
+        )
+
+        kwargs = mock_client.tool_router.session.create.call_args.kwargs
+        assert kwargs["preload"] == {"tools": "all"}
+        assert session.preload.tools == "all"
+
+    def test_create_session_with_direct_tools_preset(self, tool_router, mock_client):
+        """direct_tools applies SDK-side defaults for direct tool exposure."""
+        mock_client.tool_router.session.create.return_value.config.preload.tools = "all"
+
+        session = tool_router.create(
+            user_id="user_123",
+            session_preset="direct_tools",
+            toolkits=["github"],
+        )
+
+        kwargs = mock_client.tool_router.session.create.call_args.kwargs
+        assert kwargs["toolkits"] == {"enable": ["github"]}
+        assert kwargs["manage_connections"] == {"enable": False}
+        assert kwargs["workbench"] == {"enable": False}
+        assert kwargs["preload"] == {"tools": "all"}
+        assert kwargs["search"] == {"enable": False}
+        assert kwargs["execute"] == {"enable_multi_execute": False}
+        assert session.preload.tools == "all"
+
+    def test_create_session_with_direct_tools_preset_overrides(
+        self, tool_router, mock_client
+    ):
+        """Explicit user fields override direct_tools defaults."""
+        mock_client.tool_router.session.create.return_value.config.preload.tools = [
+            "GITHUB_CREATE_ISSUE"
+        ]
+
+        session = tool_router.create(
+            user_id="user_123",
+            session_preset="direct_tools",
+            toolkits=["github"],
+            manage_connections=True,
+            workbench={"enable": True},
+            preload={"tools": ["GITHUB_CREATE_ISSUE"]},
+        )
+
+        kwargs = mock_client.tool_router.session.create.call_args.kwargs
+        assert kwargs["manage_connections"] == {"enable": True}
+        assert kwargs["workbench"] == {"enable": True}
+        assert kwargs["preload"] == {"tools": ["GITHUB_CREATE_ISSUE"]}
+        assert kwargs["search"] == {"enable": False}
+        assert kwargs["execute"] == {"enable_multi_execute": False}
+        assert session.preload.tools == ["GITHUB_CREATE_ISSUE"]
+
     def test_create_session_complex_config(self, tool_router, mock_client):
         """Test creating a session with complex configuration."""
         session = tool_router.create(
@@ -1072,6 +1140,60 @@ class TestToolRouter:
         wrapped_tools = mock_provider.wrap_tools.call_args.kwargs["tools"]
         assert [tool.slug for tool in wrapped_tools] == ["GMAIL_FETCH_EMAILS"]
         assert result == "mocked-wrapped-tools"
+
+    @patch("composio.core.models.tools.Tools")
+    def test_tools_function_includes_preloaded_custom_tools(
+        self,
+        mock_tools_class,
+        tool_router,
+        mock_client,
+        mock_provider,
+    ):
+        """Custom tools preloaded by the create response are exposed locally."""
+
+        @experimental_api.tool(
+            slug="GREP",
+            name="Grep",
+            description="Search local text",
+        )
+        def grep(input: GrepInput, ctx):
+            return {"matches": []}
+
+        mock_response = mock_client.tool_router.session.create.return_value
+        mock_response.tool_router_tools = ["COMPOSIO_SEARCH_TOOLS", "server_grep"]
+        mock_response.experimental = MagicMock()
+        mock_response.experimental.assistive_prompt = None
+        mock_response.experimental.custom_toolkits = []
+        mock_custom_tool = MagicMock()
+        mock_custom_tool.slug = "SERVER_GREP"
+        mock_custom_tool.original_slug = "GREP"
+        mock_custom_tool.extends_toolkit = None
+        mock_response.experimental.custom_tools = [mock_custom_tool]
+
+        mock_tools_instance = MagicMock()
+        mock_tool = MagicMock()
+        mock_tool.slug = "COMPOSIO_SEARCH_TOOLS"
+        mock_tool.toolkit.slug = "composio"
+        mock_tool.input_parameters = {}
+        mock_tools_instance.get_raw_tool_router_meta_tools.return_value = [mock_tool]
+        mock_tools_instance._file_helper.enhance_schema_descriptions.return_value = {}
+        mock_tools_class.return_value = mock_tools_instance
+        mock_provider.wrap_tools.return_value = "mocked-custom-tools"
+
+        session = tool_router.create(
+            user_id="user_123",
+            experimental={"custom_tools": [grep]},
+        )
+        result = session.tools()
+
+        wrapped_tools = mock_provider.wrap_tools.call_args.kwargs["tools"]
+        assert [tool.slug for tool in wrapped_tools] == [
+            "COMPOSIO_SEARCH_TOOLS",
+            "SERVER_GREP",
+        ]
+        assert DIRECT_CUSTOM_TOOL_DESCRIPTION_PREFIX in wrapped_tools[1].description
+        assert wrapped_tools[1].toolkit.slug == "custom"
+        assert result == "mocked-custom-tools"
 
     @patch("composio.core.models.tools.Tools")
     def test_tools_function_with_modifiers(

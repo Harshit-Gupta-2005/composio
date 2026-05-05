@@ -114,7 +114,7 @@ export const transformToolRouterManageConnectionsParams = (
 export const transformToolRouterWorkbenchParams = (
   params?: ToolRouterCreateSessionConfig['workbench']
 ): SessionCreateParams.Workbench | undefined => {
-  if (!params) {
+  if (params === undefined) {
     return undefined;
   }
 

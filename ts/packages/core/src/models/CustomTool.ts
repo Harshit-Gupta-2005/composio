@@ -284,6 +284,7 @@ export function buildCustomToolsMap(
 
   const addEntry = (handle: CustomTool, finalSlug: string, toolkit?: string) => {
     const originalSlug = handle.slug.toUpperCase();
+    const finalSlugKey = finalSlug.toUpperCase();
 
     // Length validated early in createCustomTool/createCustomToolkit, but check as safety net
     if (finalSlug.length > MAX_SLUG_LENGTH) {
@@ -294,7 +295,7 @@ export function buildCustomToolsMap(
     }
 
     // Check cross-group collisions on final slug
-    if (byFinalSlug.has(finalSlug)) {
+    if (byFinalSlug.has(finalSlugKey)) {
       throw new ValidationError(
         `Custom tool slug collision: "${finalSlug}" is already registered.`
       );
@@ -309,7 +310,7 @@ export function buildCustomToolsMap(
     }
 
     const entry: CustomToolsMapEntry = { handle, finalSlug, toolkit };
-    byFinalSlug.set(finalSlug, entry);
+    byFinalSlug.set(finalSlugKey, entry);
     byOriginalSlug.set(originalSlug, entry);
   };
 
@@ -415,7 +416,7 @@ export function buildCustomToolsMapFromResponse(
       finalSlug,
       toolkit: toolkit ?? match.toolkit,
     };
-    byFinalSlug.set(finalSlug, entry);
+    byFinalSlug.set(finalSlug.toUpperCase(), entry);
     byOriginalSlug.set(originalSlug.toUpperCase(), entry);
   };
 
@@ -436,4 +437,54 @@ export function buildCustomToolsMapFromResponse(
   }
 
   return { byFinalSlug, byOriginalSlug, toolkits };
+}
+
+/**
+ * Find a custom tool entry by final slug only.
+ *
+ * @internal
+ */
+export function findCustomToolMapEntryByFinalSlug(
+  customToolsMap: CustomToolsMap | undefined,
+  slug: string
+): CustomToolsMapEntry | undefined {
+  return customToolsMap?.byFinalSlug.get(slug.toUpperCase());
+}
+
+/**
+ * Resolve custom tools that the backend selected for direct preload.
+ *
+ * The backend is the source of truth for preload expansion, including "all".
+ * The SDK only keeps the final custom slugs it can serve locally because
+ * the session tools endpoint only returns backend-managed tool schemas.
+ *
+ * @internal
+ */
+export function getPreloadedCustomToolSlugs(
+  toolRouterTools: readonly string[] | undefined,
+  customToolsMap: CustomToolsMap | undefined
+): string[] {
+  if (!toolRouterTools?.length || !customToolsMap) {
+    return [];
+  }
+
+  const seen = new Set<string>();
+  const customToolSlugs: string[] = [];
+
+  for (const slug of toolRouterTools) {
+    const entry = findCustomToolMapEntryByFinalSlug(customToolsMap, slug);
+    if (!entry) {
+      continue;
+    }
+
+    const finalSlugKey = entry.finalSlug.toUpperCase();
+    if (seen.has(finalSlugKey)) {
+      continue;
+    }
+
+    seen.add(finalSlugKey);
+    customToolSlugs.push(entry.finalSlug);
+  }
+
+  return customToolSlugs;
 }

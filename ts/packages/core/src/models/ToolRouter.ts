@@ -46,6 +46,7 @@ import {
 import { ToolRouterSession } from './ToolRouterSession';
 import {
   buildCustomToolsMapFromResponse,
+  getPreloadedCustomToolSlugs,
   serializeCustomTools,
   serializeCustomToolkits,
 } from './CustomTool';
@@ -109,6 +110,13 @@ export class ToolRouter<
    *     customToolkits: [myToolkit],
    *   },
    * });
+   *
+   * // Expose all tools allowed by filters directly, without meta/helper tools.
+   * // `preload.tools = "all"` requires a positive filter such as `toolkits`.
+   * const directSession = await composio.create('user_123', {
+   *   sessionPreset: 'direct_tools',
+   *   toolkits: ['github'],
+   * });
    * ```
    */
   async create(
@@ -116,6 +124,7 @@ export class ToolRouter<
     config?: ToolRouterCreateSessionConfig
   ): Promise<Session<TToolCollection, TTool, TProvider>> {
     const routerConfig = ToolRouterCreateSessionConfigSchema.parse(config ?? {});
+    const isDirectToolsPreset = routerConfig.sessionPreset === 'direct_tools';
 
     // Extract custom tools/toolkits from experimental config
     const customTools = routerConfig.experimental?.customTools;
@@ -152,6 +161,10 @@ export class ToolRouter<
       workbench: transformToolRouterWorkbenchParams(routerConfig.workbench),
       multi_account: multiAccountPayload,
       preload: routerConfig.preload,
+      ...(isDirectToolsPreset && {
+        search: { enable: false },
+        execute: { enable_multi_execute: false },
+      }),
       experimental: Object.keys(experimentalPayload).length > 0 ? experimentalPayload : undefined,
     };
 
@@ -167,6 +180,13 @@ export class ToolRouter<
         session.experimental
       );
     }
+    const metadata = {
+      ...getSessionMetadata(session),
+      preloadedCustomToolSlugs: getPreloadedCustomToolSlugs(
+        session.tool_router_tools,
+        customToolsMap
+      ),
+    };
 
     const assistivePrompt = session.experimental?.assistive_prompt;
 
@@ -178,7 +198,7 @@ export class ToolRouter<
       { assistivePrompt },
       customToolsMap,
       userId,
-      getSessionMetadata(session)
+      metadata
     );
   }
 

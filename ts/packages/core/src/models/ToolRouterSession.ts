@@ -43,9 +43,12 @@ import type { SessionExecuteParams } from '@composio/client/resources/tool-route
 import { SessionProxyExecuteParamsSchema } from '../types/toolRouter.types';
 import { SessionContextImpl } from './SessionContext';
 import { findCustomTool, executeCustomTool } from './customToolExecution';
+import { findCustomToolMapEntryByFinalSlug } from './CustomTool';
 import { transformProxyParams } from './proxyParamsTransform';
 
 const COMPOSIO_MULTI_EXECUTE_TOOL = 'COMPOSIO_MULTI_EXECUTE_TOOL';
+export const DIRECT_CUSTOM_TOOL_DESCRIPTION_PREFIX =
+  '[Direct tool - call directly, no search or connection check needed beforehand.]';
 
 export class ToolRouterSession<
   TToolCollection,
@@ -58,6 +61,7 @@ export class ToolRouterSession<
   public readonly preload: ToolRouterSessionPreloadConfig;
   public readonly configVersion?: number;
   public readonly warnings: ToolRouterSessionWarning[];
+  private readonly preloadedCustomToolSlugs: string[];
 
   /** Singleton session context — shared across all custom tool executions */
   private readonly sessionContext?: SessionContext;
@@ -84,6 +88,7 @@ export class ToolRouterSession<
     this.preload = metadata?.preload ?? { tools: [] };
     this.configVersion = metadata?.configVersion;
     this.warnings = metadata?.warnings ?? [];
+    this.preloadedCustomToolSlugs = metadata?.preloadedCustomToolSlugs ?? [];
 
     // Create singleton session context if custom tools are bound
     if (customToolsMap && userId) {
@@ -106,7 +111,8 @@ export class ToolRouterSession<
       this.sessionId,
       modifiers?.modifySchema ? { modifySchema: modifiers.modifySchema } : undefined
     );
-    const toolBySlug = new Map(tools.map(tool => [tool.slug.toUpperCase(), tool]));
+    const sessionTools = await this.addPreloadedCustomTools(tools, modifiers);
+    const toolBySlug = new Map(sessionTools.map(tool => [tool.slug.toUpperCase(), tool]));
 
     if (this.hasCustomTools()) {
       // Create an execute function that splits local/remote tools in COMPOSIO_MULTI_EXECUTE_TOOL
@@ -115,7 +121,7 @@ export class ToolRouterSession<
         input: Record<string, unknown>
       ): Promise<ToolExecuteResponse> => {
         if (toolSlug === COMPOSIO_MULTI_EXECUTE_TOOL) {
-          return this.routeMultiExecute(input, ToolsModel, tools, modifiers);
+          return this.routeMultiExecute(input, ToolsModel, sessionTools, modifiers);
         }
         return ToolsModel.executeSessionTool(
           toolSlug,
@@ -131,14 +137,82 @@ export class ToolRouterSession<
             'Pass a provider in the Composio constructor.'
         );
       }
-      return this.config.provider.wrapTools(tools, routingExecuteFn) as ReturnType<
+      return this.config.provider.wrapTools(sessionTools, routingExecuteFn) as ReturnType<
         TProvider['wrapTools']
       >;
     }
 
     // Standard path (no local tools)
-    const wrappedTools = ToolsModel.wrapToolsForToolRouter(this.sessionId, tools, modifiers);
+    const wrappedTools = ToolsModel.wrapToolsForToolRouter(this.sessionId, sessionTools, modifiers);
     return wrappedTools as ReturnType<TProvider['wrapTools']>;
+  }
+
+  private async addPreloadedCustomTools(
+    tools: Tool[],
+    modifiers?: SessionMetaToolOptions
+  ): Promise<Tool[]> {
+    const customTools = await this.getPreloadedCustomToolSchemas(modifiers);
+    if (!customTools.length) {
+      return tools;
+    }
+
+    const existingSlugs = new Set(tools.map(tool => tool.slug.toUpperCase()));
+    const appendedTools = customTools.filter(tool => !existingSlugs.has(tool.slug.toUpperCase()));
+    if (!appendedTools.length) {
+      return tools;
+    }
+
+    return [...tools, ...appendedTools];
+  }
+
+  private async getPreloadedCustomToolSchemas(modifiers?: SessionMetaToolOptions): Promise<Tool[]> {
+    if (!this.customToolsMap || !this.preloadedCustomToolSlugs.length) {
+      return [];
+    }
+
+    const tools: Tool[] = [];
+    for (const slug of this.preloadedCustomToolSlugs) {
+      const entry = findCustomToolMapEntryByFinalSlug(this.customToolsMap, slug);
+      if (!entry) {
+        continue;
+      }
+
+      let tool = this.customToolEntryToTool(entry);
+      if (modifiers?.modifySchema) {
+        tool = await modifiers.modifySchema({
+          toolSlug: tool.slug,
+          toolkitSlug: tool.toolkit?.slug ?? 'custom',
+          schema: tool,
+        });
+      }
+      tools.push(tool);
+    }
+    return tools;
+  }
+
+  private customToolEntryToTool(entry: CustomToolsMapEntry): Tool {
+    const toolkitSlug = entry.toolkit ?? 'custom';
+    const customToolkit = this.customToolsMap?.toolkits?.find(
+      toolkit => toolkit.slug.toLowerCase() === toolkitSlug.toLowerCase()
+    );
+    const toolkitName = customToolkit?.name ?? entry.toolkit ?? 'Custom';
+
+    return {
+      slug: entry.finalSlug,
+      name: entry.handle.name,
+      description: `${DIRECT_CUSTOM_TOOL_DESCRIPTION_PREFIX}\n${entry.handle.description}`,
+      inputParameters: entry.handle.inputSchema as Tool['inputParameters'],
+      outputParameters: entry.handle.outputSchema as Tool['outputParameters'],
+      tags: [],
+      toolkit: {
+        slug: toolkitSlug,
+        name: toolkitName,
+      },
+      isDeprecated: false,
+      availableVersions: [],
+      scopes: [],
+      isNoAuth: !entry.handle.extendsToolkit,
+    };
   }
 
   /**
