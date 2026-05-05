@@ -33,6 +33,7 @@ const status = Options.choice('status', [
   'FAILED',
   'EXPIRED',
   'INACTIVE',
+  'REVOKED',
 ] as const).pipe(Options.withDescription('Filter by connection status'), Options.optional);
 
 const limit = Options.integer('limit').pipe(
@@ -77,7 +78,18 @@ export const connectedAccountsCmd$List = Command.make(
           client.connectedAccounts.list({
             toolkit_slugs: toolkitSlugs,
             user_ids: Option.isSome(userId) ? [userId.value] : undefined,
-            statuses: Option.isSome(status) ? [status.value] : undefined,
+            // Cast bypasses the stale Stainless `statuses` union (still
+            // missing 'REVOKED') so the CLI flag stays in sync with the
+            // Apollo enum until @composio/client is regenerated.
+            statuses: Option.isSome(status)
+              ? ([status.value] as Parameters<
+                  typeof client.connectedAccounts.list
+                >[0] extends infer P
+                  ? P extends { statuses?: infer S }
+                    ? S
+                    : never
+                  : never)
+              : undefined,
             limit: clampLimit(limit),
           })
         )
