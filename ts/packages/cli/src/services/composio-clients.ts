@@ -1775,9 +1775,18 @@ function buildConnectedAccountsNamespace(
             client.connectedAccounts.list({
               toolkit_slugs: params.toolkit_slugs,
               user_ids: params.user_ids,
-              statuses: params.statuses as
-                | Array<'INITIALIZING' | 'INITIATED' | 'ACTIVE' | 'FAILED' | 'EXPIRED' | 'INACTIVE'>
-                | undefined,
+              // Cast widens to whatever the Stainless-generated client
+              // currently accepts, plus 'REVOKED'. The cast bypasses the
+              // stale Stainless types so callers passing 'REVOKED' (a valid
+              // Apollo status) are forwarded as-is until @composio/client is
+              // regenerated.
+              statuses: params.statuses as Parameters<
+                typeof client.connectedAccounts.list
+              >[0] extends infer P
+                ? P extends { statuses?: infer S }
+                  ? S
+                  : never
+                : never,
               limit: params.limit,
             }),
           ConnectedAccountListResponse

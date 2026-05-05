@@ -107,7 +107,11 @@ export class ConnectedAccounts {
         cursor: parsedQuery.data.cursor?.toString(),
         limit: parsedQuery.data.limit,
         order_by: parsedQuery.data.orderBy,
-        statuses: parsedQuery.data.statuses,
+        // Cast widens to match the Stainless-generated client params, which
+        // lag behind the live API enum. Apollo accepts the union value at
+        // runtime (`z.nativeEnum(ConnectionStatusEnum)` on the query param);
+        // remove the cast once `@composio/client` is regenerated.
+        statuses: parsedQuery.data.statuses as ConnectedAccountListParamsRaw['statuses'],
         toolkit_slugs: parsedQuery.data.toolkitSlugs,
         user_ids: parsedQuery.data.userIds,
       };

@@ -56,6 +56,7 @@ const normalizeConnectedAccountStatus = (
     case 'FAILED':
     case 'EXPIRED':
     case 'INACTIVE':
+    case 'REVOKED':
       return status;
     default:
       return 'INACTIVE';

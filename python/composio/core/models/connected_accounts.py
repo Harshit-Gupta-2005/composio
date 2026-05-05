@@ -77,10 +77,18 @@ class ConnectionRequest(Resource):
         while deadline > time.time():
             connection = self._client.connected_accounts.retrieve(nanoid=self.id)
             self.status = connection.status
-            if self.status != "ACTIVE":
-                time.sleep(1)
-                continue
-            return connection
+            if self.status == "ACTIVE":
+                return connection
+            # Fail fast on terminal non-ACTIVE states (FAILED / EXPIRED /
+            # INACTIVE / REVOKED) instead of polling until timeout.
+            if self.status in ("FAILED", "EXPIRED", "INACTIVE", "REVOKED"):
+                raise exceptions.SDKError(
+                    message=(
+                        f"Connection {self.id} entered terminal state "
+                        f"{self.status!r} before becoming active"
+                    ),
+                )
+            time.sleep(1)
 
         raise exceptions.ComposioSDKTimeoutError(
             message=f"Timeout while waiting for connection {self.id} to be active",
