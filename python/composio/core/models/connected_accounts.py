@@ -4,12 +4,13 @@ import functools
 import logging
 import time
 import typing as t
+import warnings
 
 import typing_extensions as te
 
 from composio import exceptions
 from composio.client import HttpClient
-from composio_client import omit
+from composio_client import BadRequestError, omit
 from composio.client.types import (
     connected_account_create_params,
     connected_account_patch_params,
@@ -21,6 +22,15 @@ from composio.client.types import (
 from .base import Resource
 
 logger = logging.getLogger(__name__)
+
+# Schemes that take the redirectable OAuth path on the legacy
+# `POST /api/v3/connected_accounts` endpoint, and so are subject to the
+# 2026-05-08 / 2026-07-03 retirement when the auth config is Composio-managed.
+_LEGACY_RETIRING_OAUTH_SCHEMES = frozenset({"OAUTH1", "OAUTH2", "DCR_OAUTH"})
+
+# One-time-per-process guard so long-running services don't spam the deprecation
+# warning on every initiate() call.
+_legacy_initiate_warning_emitted = False
 
 
 class ConnectionRequest(Resource):
@@ -403,7 +413,26 @@ class ConnectedAccounts:
         a new connected account and returns a connection request.
 
         Users can then wait for the connection to be established using the
-        `wait_for_connection` method.
+        ``wait_for_connection`` method.
+
+        .. deprecated::
+            For Composio-managed (default) auth configs on redirectable OAuth
+            schemes (OAuth1, OAuth2, DCR_OAUTH), the legacy endpoint this
+            method wraps is being retired: **2026-05-08** for new
+            organizations and **2026-07-03** for all remaining organizations.
+            After your org's cutover, this method will raise
+            :class:`composio.exceptions.ComposioLegacyConnectedAccountsEndpointRetiredError`
+            for that specific combination.
+
+            Use :meth:`ConnectedAccounts.link` for Composio-managed OAuth — it
+            works for every redirectable scheme regardless of whether the
+            auth config is Composio-managed or custom, and the return shape
+            is the same.
+
+            Custom auth configs (your own OAuth app) and non-OAuth schemes
+            (API key, bearer token, basic auth) are unaffected and continue
+            to work on ``initiate()``. See
+            https://docs.composio.dev/docs/changelog/2026/04/24
 
         :param user_id: The user ID to create the connected account for.
         :param auth_config_id: The auth config ID to create the connected account for.
@@ -437,10 +466,55 @@ class ConnectedAccounts:
         if alias is not None:
             connection["alias"] = alias
 
-        response = self._client.connected_accounts.create(
-            auth_config={"id": auth_config_id},
-            connection=t.cast(connected_account_create_params.Connection, connection),
-        )
+        try:
+            response = self._client.connected_accounts.create(
+                auth_config={"id": auth_config_id},
+                connection=t.cast(
+                    connected_account_create_params.Connection, connection
+                ),
+            )
+        except BadRequestError as error:
+            # When the server has flipped this org to the retired path, the
+            # legacy endpoint returns 400 with a stable migration message.
+            # Surface it as a typed error so callers get an actionable hint
+            # instead of a generic BadRequestError.
+            message = str(error)
+            if (
+                "no longer supported" in message
+                and "/api/v3/connected_accounts/link" in message
+            ):
+                raise exceptions.ComposioLegacyConnectedAccountsEndpointRetiredError(
+                    message
+                ) from error
+            raise
+
+        # Warn once per process when a successful initiate() lands on the
+        # redirectable-OAuth path. We can't tell from the response alone
+        # whether the auth config is Composio-managed (the field that
+        # determines whether the cutover applies), so the warning text is
+        # conditional in wording — custom-OAuth users can ignore it,
+        # Composio-managed-OAuth users see a clear pointer to link() before
+        # their org's cutover lands.
+        global _legacy_initiate_warning_emitted
+        response_auth_scheme = getattr(response.connection_data, "auth_scheme", None)
+        if (
+            not _legacy_initiate_warning_emitted
+            and isinstance(response_auth_scheme, str)
+            and response_auth_scheme in _LEGACY_RETIRING_OAUTH_SCHEMES
+        ):
+            _legacy_initiate_warning_emitted = True
+            warnings.warn(
+                "composio.connected_accounts.initiate() will stop working "
+                "for Composio-managed OAuth auth configs on 2026-05-08 (new "
+                "orgs) and 2026-07-03 (all orgs). If this auth config is "
+                "Composio-managed, switch to "
+                "composio.connected_accounts.link() before then. Custom "
+                "auth configs are unaffected. See "
+                "https://docs.composio.dev/docs/changelog/2026/04/24",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
         return ConnectionRequest(
             id=response.id,
             status=response.connection_data.val.status,
