@@ -40,6 +40,8 @@ from ._modifiers import (
     schema_modifier,
 )
 
+TOOL_ROUTER_SESSION_TOOLS_PAGE_LIMIT = 500
+
 
 def _needs_serialization(obj: t.Any) -> bool:
     """Check if an object contains any Pydantic model instances."""
@@ -275,9 +277,21 @@ class Tools(Resource, t.Generic[TTool, TToolCollection]):
             ```
         """
         # Fetch session tools from the API
-        tools_response = self._client.tool_router.session.tools(session_id=session_id)
-        # Cast to Tool type - session.tools returns compatible Item type from different response schema
-        tools_list: t.List[Tool] = [t.cast(Tool, item) for item in tools_response.items]
+        tools_list: t.List[Tool] = []
+        cursor: t.Optional[str] = None
+
+        while True:
+            tools_response = self._client.tool_router.session.tools(
+                session_id=session_id,
+                cursor=none_to_omit(cursor),
+                limit=TOOL_ROUTER_SESSION_TOOLS_PAGE_LIMIT,
+            )
+            # Cast to Tool type - session.tools returns compatible Item type from different response schema
+            tools_list.extend(t.cast(Tool, item) for item in tools_response.items)
+
+            cursor = getattr(tools_response, "next_cursor", None)
+            if not cursor:
+                break
 
         # Apply schema modifiers if provided
         if modifiers is not None:

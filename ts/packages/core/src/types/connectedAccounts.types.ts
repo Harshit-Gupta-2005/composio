@@ -12,6 +12,7 @@ export const ConnectedAccountStatuses = {
   FAILED: 'FAILED',
   EXPIRED: 'EXPIRED',
   INACTIVE: 'INACTIVE',
+  REVOKED: 'REVOKED',
 } as const;
 export const ConnectedAccountStatusSchema = z.enum([
   ConnectedAccountStatuses.INITIALIZING,
@@ -20,6 +21,7 @@ export const ConnectedAccountStatusSchema = z.enum([
   ConnectedAccountStatuses.FAILED,
   ConnectedAccountStatuses.EXPIRED,
   ConnectedAccountStatuses.INACTIVE,
+  ConnectedAccountStatuses.REVOKED,
 ]);
 export type ConnectedAccountStatus =
   (typeof ConnectedAccountStatuses)[keyof typeof ConnectedAccountStatuses];

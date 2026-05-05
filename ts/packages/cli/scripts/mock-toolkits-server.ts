@@ -96,7 +96,10 @@ export async function startMockToolkitsListServer(options?: {
     const url = new URL(req.url ?? '/', `http://${req.headers.host ?? '127.0.0.1'}`);
     requests.push(`${req.method ?? 'GET'} ${url.pathname}${url.search}`);
 
-    if ((req.method ?? 'GET') === 'GET' && url.pathname === '/api/v3/toolkits') {
+    if (
+      (req.method ?? 'GET') === 'GET' &&
+      (url.pathname === '/api/v3/toolkits' || url.pathname === '/api/v3.1/toolkits')
+    ) {
       const items = matchingToolkits(url.searchParams.get('search')).slice(0, parseLimit(req));
       sendJson(res, 200, {
         items,
@@ -108,12 +111,19 @@ export async function startMockToolkitsListServer(options?: {
       return;
     }
 
-    if ((req.method ?? 'GET') === 'GET' && url.pathname === '/api/v3/toolkits/gmail') {
+    if (
+      (req.method ?? 'GET') === 'GET' &&
+      (url.pathname === '/api/v3/toolkits/gmail' || url.pathname === '/api/v3.1/toolkits/gmail')
+    ) {
       sendJson(res, 200, GMAIL_TOOLKIT_DETAILED);
       return;
     }
 
-    if ((req.method ?? 'GET') === 'GET' && url.pathname.startsWith('/api/v3/toolkits/')) {
+    if (
+      (req.method ?? 'GET') === 'GET' &&
+      (url.pathname.startsWith('/api/v3/toolkits/') ||
+        url.pathname.startsWith('/api/v3.1/toolkits/'))
+    ) {
       sendJson(res, 404, {
         error: `Toolkit not found: ${url.pathname.split('/').at(-1) ?? 'unknown'}`,
       });

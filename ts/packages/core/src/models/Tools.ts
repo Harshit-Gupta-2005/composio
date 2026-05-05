@@ -59,6 +59,8 @@ import { CONFIG_DEFAULTS } from '../utils/config-defaults';
 import { resolveEffectiveUploadAllowlist } from '../utils/fileDirs';
 import { schemaHasFileUploadable } from '../utils/modifiers/FileToolModifier.utils.neutral';
 
+const TOOL_ROUTER_SESSION_TOOLS_PAGE_LIMIT = 500;
+
 /**
  * This class is used to manage tools in the Composio SDK.
  * It provides methods to list, get, and execute tools.
@@ -487,8 +489,19 @@ export class Tools<
     sessionId: string,
     options?: SchemaModifierOptions
   ): Promise<ToolList> {
-    const tools = await this.client.toolRouter.session.tools(sessionId);
-    let modifiedTools = tools.items.map(tool => this.transformToolCases(tool));
+    const tools: ToolList = [];
+    let cursor: string | null | undefined;
+
+    do {
+      const response = await this.client.toolRouter.session.tools(sessionId, {
+        limit: TOOL_ROUTER_SESSION_TOOLS_PAGE_LIMIT,
+        ...(cursor ? { cursor } : {}),
+      });
+      tools.push(...response.items.map(tool => this.transformToolCases(tool)));
+      cursor = response.next_cursor;
+    } while (cursor);
+
+    let modifiedTools = tools;
     // apply local modifiers if they are provided
     if (options?.modifySchema) {
       const modifier = options.modifySchema;
