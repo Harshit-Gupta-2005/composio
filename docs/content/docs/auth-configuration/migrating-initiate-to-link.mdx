@@ -50,6 +50,9 @@ connected_account = connection_request.wait_for_connection()
 **Before:**
 
 ```typescript
+import { Composio } from '@composio/core';
+const composio = new Composio({ apiKey: 'your_api_key' });
+// ---cut---
 const connectionRequest = await composio.connectedAccounts.initiate(
   'user_123',
   'ac_abc'
@@ -61,6 +64,9 @@ const connectedAccount = await connectionRequest.waitForConnection();
 **After:**
 
 ```typescript
+import { Composio } from '@composio/core';
+const composio = new Composio({ apiKey: 'your_api_key' });
+// ---cut---
 const connectionRequest = await composio.connectedAccounts.link(
   'user_123',
   'ac_abc'
@@ -108,6 +114,9 @@ else:
 </Tab>
 <Tab value="TypeScript">
 ```typescript
+import { Composio } from '@composio/core';
+const composio = new Composio({ apiKey: 'your_api_key' });
+// ---cut---
 const authConfig = await composio.authConfigs.get('ac_abc');
 
 const request = authConfig.isComposioManaged
