@@ -28,10 +28,6 @@ from composio_client.types.tool_router.session_proxy_execute_response import (
 from composio_client.types.tool_router.session_search_response import (
     SessionSearchResponse,
 )
-from composio_client.types.tool_router import (
-    session_execute_params,
-    session_search_params,
-)
 
 from composio.client import HttpClient
 from composio.core.models.connected_accounts import ConnectionRequest
@@ -46,6 +42,10 @@ from composio.core.models.custom_tool_types import (
     InlineCustomToolsWirePayload,
     RegisteredCustomTool,
     RegisteredCustomToolkit,
+)
+from composio.core.models.inline_custom_tools_payload import (
+    inline_custom_tools_execute_experimental,
+    inline_custom_tools_search_experimental,
 )
 from composio.core.models._modifiers import Modifiers, apply_modifier_by_type
 from composio.core.models.session_context import SessionContextImpl, proxy_execute_impl
@@ -657,13 +657,8 @@ class ToolRouterSession(t.Generic[TTool, TToolCollection]):
             session_id=self.session_id,
             queries=[{"use_case": query}],
             model=model if model else omit,
-            experimental=(
-                t.cast(
-                    session_search_params.Experimental,
-                    self._inline_custom_tools_payload,
-                )
-                if self._inline_custom_tools_payload is not None
-                else omit
+            experimental=inline_custom_tools_search_experimental(
+                self._inline_custom_tools_payload
             ),
         )
 
@@ -702,24 +697,14 @@ class ToolRouterSession(t.Generic[TTool, TToolCollection]):
                 log_id="",
             )
 
-        # Remote execution
-        if self._inline_custom_tools_payload is not None:
-            return self._client.tool_router.session.execute(
-                session_id=self.session_id,
-                tool_slug=tool_slug,
-                arguments=arguments if arguments is not None else omit,
-                account=account if account is not None else omit,
-                experimental=t.cast(
-                    session_execute_params.Experimental,
-                    self._inline_custom_tools_payload,
-                ),
-            )
-
         return self._client.tool_router.session.execute(
             session_id=self.session_id,
             tool_slug=tool_slug,
             arguments=arguments if arguments is not None else omit,
             account=account if account is not None else omit,
+            experimental=inline_custom_tools_execute_experimental(
+                self._inline_custom_tools_payload
+            ),
         )
 
     def custom_tools(

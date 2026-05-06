@@ -48,6 +48,7 @@ import { SessionContextImpl } from './SessionContext';
 import { findCustomTool, executeCustomTool } from './customToolExecution';
 import { findCustomToolMapEntryByFinalSlug } from './CustomTool';
 import { transformProxyParams } from './proxyParamsTransform';
+import { inlineCustomToolsExperimental } from './inlineCustomToolsPayload';
 
 const COMPOSIO_MULTI_EXECUTE_TOOL = 'COMPOSIO_MULTI_EXECUTE_TOOL';
 export const DIRECT_CUSTOM_TOOL_DESCRIPTION_PREFIX =
@@ -370,7 +371,9 @@ export class ToolRouterSession<
     query: string;
     toolkits?: string[];
   }): Promise<ToolRouterSessionSearchResponse> {
-    const experimental = this.inlineSearchExperimental();
+    const experimental = inlineCustomToolsExperimental<SessionSearchParams.Experimental>(
+      this.inlineCustomToolsPayload
+    );
     const searchParams = {
       queries: [{ use_case: params.query }],
       ...(params.toolkits?.length ? { toolkits: params.toolkits } : {}),
@@ -418,7 +421,9 @@ export class ToolRouterSession<
     if (options?.account) {
       executeParams.account = options.account;
     }
-    const experimental = this.inlineExecuteExperimental();
+    const experimental = inlineCustomToolsExperimental<SessionExecuteParams.Experimental>(
+      this.inlineCustomToolsPayload
+    );
     if (experimental) {
       executeParams.experimental = experimental;
     }
@@ -473,14 +478,6 @@ export class ToolRouterSession<
     return (this.customToolsMap?.byFinalSlug.size ?? 0) > 0;
   }
 
-  private inlineExecuteExperimental(): SessionExecuteParams.Experimental | undefined {
-    return this.inlineCustomToolsPayload as SessionExecuteParams.Experimental | undefined;
-  }
-
-  private inlineSearchExperimental(): SessionSearchParams.Experimental | undefined {
-    return this.inlineCustomToolsPayload as SessionSearchParams.Experimental | undefined;
-  }
-
   private executeBackendSessionTool(
     ToolsModel: Tools<TToolCollection, TTool, TProvider>,
     toolSlug: string,
@@ -489,7 +486,9 @@ export class ToolRouterSession<
     tool?: Tool
   ): Promise<ToolExecuteResponse> {
     const body = { sessionId: this.sessionId, arguments: input };
-    const experimental = this.inlineExecuteExperimental();
+    const experimental = inlineCustomToolsExperimental<SessionExecuteParams.Experimental>(
+      this.inlineCustomToolsPayload
+    );
     if (experimental) {
       return ToolsModel.executeSessionTool(toolSlug, body, modifiers, tool, { experimental });
     }

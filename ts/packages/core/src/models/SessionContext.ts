@@ -21,6 +21,7 @@ import { transformProxyParams } from './proxyParamsTransform';
 import { findCustomTool, executeCustomTool } from './customToolExecution';
 import { transformExecuteResponse } from '../utils/transformers/toolRouterResponseTransform';
 import type { SessionExecuteParams } from '@composio/client/resources/tool-router/session/session.mjs';
+import { inlineCustomToolsExperimental } from './inlineCustomToolsPayload';
 
 /**
  * Concrete implementation of SessionContext.
@@ -71,9 +72,11 @@ export class SessionContextImpl implements SessionContext {
       tool_slug: toolSlug,
       arguments: arguments_,
     };
-    if (this.inlineCustomToolsPayload) {
-      executeParams.experimental =
-        this.inlineCustomToolsPayload as SessionExecuteParams.Experimental;
+    const experimental = inlineCustomToolsExperimental<SessionExecuteParams.Experimental>(
+      this.inlineCustomToolsPayload
+    );
+    if (experimental) {
+      executeParams.experimental = experimental;
     }
 
     const response = await this.client.toolRouter.session.execute(this.sessionId, executeParams);

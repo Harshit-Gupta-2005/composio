@@ -184,7 +184,7 @@ const tools = await session.tools();
 const agent = new Agent({
   name: "Custom Tools Agent",
   instructions: "You are a helpful assistant. Use Composio tools to execute tasks.",
-  model: "gpt-5.2",
+  model: "gpt-5.5",
   tools,
 });
 

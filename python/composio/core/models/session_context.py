@@ -16,8 +16,6 @@ from composio_client.types.tool_router.session_execute_response import (
 from composio_client.types.tool_router.session_proxy_execute_response import (
     SessionProxyExecuteResponse,
 )
-from composio_client.types.tool_router import session_execute_params
-
 from composio.client import HttpClient
 from composio.core.models.custom_tool_execution import (
     execute_custom_tool,
@@ -26,6 +24,9 @@ from composio.core.models.custom_tool_execution import (
 from composio.core.models.custom_tool_types import (
     CustomToolsMap,
     InlineCustomToolsWirePayload,
+)
+from composio.core.models.inline_custom_tools_payload import (
+    inline_custom_tools_execute_experimental,
 )
 from composio.core.models.tools import _serialize_arguments
 from composio.exceptions import ValidationError
@@ -141,22 +142,13 @@ class SessionContextImpl:
         # Serialize any Pydantic model instances before sending to remote API
         serialized = _serialize_arguments(arguments)
 
-        # Fall back to remote execution
-        if self._inline_custom_tools_payload is not None:
-            return self._client.tool_router.session.execute(
-                session_id=self._session_id,
-                tool_slug=tool_slug,
-                arguments=serialized,
-                experimental=t.cast(
-                    session_execute_params.Experimental,
-                    self._inline_custom_tools_payload,
-                ),
-            )
-
         return self._client.tool_router.session.execute(
             session_id=self._session_id,
             tool_slug=tool_slug,
             arguments=serialized,
+            experimental=inline_custom_tools_execute_experimental(
+                self._inline_custom_tools_payload
+            ),
         )
 
     def proxy_execute(

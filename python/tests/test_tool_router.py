@@ -3,6 +3,7 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
+from composio_client import omit
 from pydantic import BaseModel, Field
 
 from composio.exceptions import ValidationError
@@ -1003,6 +1004,7 @@ class TestToolRouter:
             tool_slug="GMAIL_FETCH_EMAILS",
             arguments={"max_results": 1},
             account="work",
+            experimental=omit,
         )
 
     def test_authorize_function(self, tool_router, mock_client):
@@ -1576,6 +1578,7 @@ class TestToolRouterExecution:
             tool_slug="GMAIL_SEND_EMAIL",
             arguments={"to": "test@example.com"},
             enable_auto_workbench_offload=True,
+            experimental=omit,
         )
 
         # Verify result format

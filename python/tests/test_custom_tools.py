@@ -16,6 +16,7 @@ from dataclasses import replace
 from unittest.mock import MagicMock
 
 import pytest
+from composio_client import omit
 from composio_client.types.tool_router.session_execute_response import (
     SessionExecuteResponse,
 )
@@ -569,6 +570,7 @@ class TestSessionContextImpl:
             session_id="s",
             tool_slug="NONEXISTENT",
             arguments={"arg": "val"},
+            experimental=omit,
         )
 
     def test_remote_fallback_passes_inline_custom_tools(self):

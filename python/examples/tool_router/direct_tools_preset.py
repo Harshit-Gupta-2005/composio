@@ -49,7 +49,7 @@ agent = Agent(
         "Use the provided direct tools. The session is configured without Tool "
         "Router meta/helper tools."
     ),
-    model=os.environ.get("OPENAI_MODEL", "gpt-4.1-mini"),
+    model=os.environ.get("OPENAI_MODEL", "gpt-5.5"),
     tools=tools,
 )
 

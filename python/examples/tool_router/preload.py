@@ -153,7 +153,7 @@ agent = Agent(
         "Use the provided direct tools. Do not search for tools first; the "
         "needed tools are already loaded."
     ),
-    model=os.environ.get("OPENAI_MODEL", "gpt-4.1-mini"),
+    model=os.environ.get("OPENAI_MODEL", "gpt-5.5"),
     tools=tools,
 )
 
