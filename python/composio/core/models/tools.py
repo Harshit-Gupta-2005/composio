@@ -15,8 +15,10 @@ from composio.client.types import (
     tool_proxy_params,
     tool_proxy_response,
 )
+from composio_client.types.tool_router import session_execute_params
 from composio.core.models._files import FileHelper
 from composio.core.models.base import Resource
+from composio.core.models.custom_tool_types import InlineCustomToolsWirePayload
 from composio.core.models.custom_tools import CustomTools
 from composio.core.provider import TTool, TToolCollection
 from composio.core.provider.agentic import AgenticProvider, AgenticProviderExecuteFn
@@ -456,6 +458,7 @@ class Tools(Resource, t.Generic[TTool, TToolCollection]):
         self,
         session_id: str,
         modifiers: t.Optional[Modifiers] = None,
+        inline_custom_tools_payload: t.Optional[InlineCustomToolsWirePayload] = None,
     ) -> AgenticProviderExecuteFn:
         """
         Create an execute function for tool router session tools.
@@ -533,14 +536,21 @@ class Tools(Resource, t.Generic[TTool, TToolCollection]):
             # Serialize any Pydantic model instances before sending to the API
             processed_arguments = _serialize_arguments(processed_arguments)
 
-            response = self._client.tool_router.session.execute(
-                session_id=session_id,
-                tool_slug=slug,
-                arguments=processed_arguments,
+            execute_kwargs: t.Dict[str, t.Any] = {
+                "session_id": session_id,
+                "tool_slug": slug,
+                "arguments": processed_arguments,
                 # Provider-wrapped session tools are agentic calls, so they opt into
                 # direct tool offload when the backend session workbench allows it.
-                enable_auto_workbench_offload=True,
-            )
+                "enable_auto_workbench_offload": True,
+            }
+            if inline_custom_tools_payload is not None:
+                execute_kwargs["experimental"] = t.cast(
+                    session_execute_params.Experimental,
+                    inline_custom_tools_payload,
+                )
+
+            response = self._client.tool_router.session.execute(**execute_kwargs)
 
             # Convert response to standard format
             result: ToolExecutionResponse = {

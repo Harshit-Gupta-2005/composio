@@ -16,13 +16,17 @@ from composio_client.types.tool_router.session_execute_response import (
 from composio_client.types.tool_router.session_proxy_execute_response import (
     SessionProxyExecuteResponse,
 )
+from composio_client.types.tool_router import session_execute_params
 
 from composio.client import HttpClient
 from composio.core.models.custom_tool_execution import (
     execute_custom_tool,
     find_custom_tool,
 )
-from composio.core.models.custom_tool_types import CustomToolsMap
+from composio.core.models.custom_tool_types import (
+    CustomToolsMap,
+    InlineCustomToolsWirePayload,
+)
 from composio.core.models.tools import _serialize_arguments
 from composio.exceptions import ValidationError
 
@@ -99,11 +103,13 @@ class SessionContextImpl:
         user_id: str,
         session_id: str,
         custom_tools_map: t.Optional[CustomToolsMap] = None,
+        inline_custom_tools_payload: t.Optional[InlineCustomToolsWirePayload] = None,
     ) -> None:
         self._client = client
         self._user_id = user_id
         self._session_id = session_id
         self._custom_tools_map = custom_tools_map
+        self._inline_custom_tools_payload = inline_custom_tools_payload
 
     @property
     def user_id(self) -> str:
@@ -136,11 +142,18 @@ class SessionContextImpl:
         serialized = _serialize_arguments(arguments)
 
         # Fall back to remote execution
-        return self._client.tool_router.session.execute(
-            session_id=self._session_id,
-            tool_slug=tool_slug,
-            arguments=serialized,
-        )
+        execute_kwargs: t.Dict[str, t.Any] = {
+            "session_id": self._session_id,
+            "tool_slug": tool_slug,
+            "arguments": serialized,
+        }
+        if self._inline_custom_tools_payload is not None:
+            execute_kwargs["experimental"] = t.cast(
+                session_execute_params.Experimental,
+                self._inline_custom_tools_payload,
+            )
+
+        return self._client.tool_router.session.execute(**execute_kwargs)
 
     def proxy_execute(
         self,

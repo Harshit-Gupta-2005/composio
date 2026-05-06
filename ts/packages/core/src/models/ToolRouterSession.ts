@@ -39,7 +39,10 @@ import type {
 } from '../types/customTool.types';
 import type { Tool, ToolExecuteResponse } from '../types/tool.types';
 import type { SessionProxyExecuteParams } from '../types/toolRouter.types';
-import type { SessionExecuteParams } from '@composio/client/resources/tool-router/session/session.mjs';
+import type {
+  SessionExecuteParams,
+  SessionSearchParams,
+} from '@composio/client/resources/tool-router/session/session.mjs';
 import { SessionProxyExecuteParamsSchema } from '../types/toolRouter.types';
 import { SessionContextImpl } from './SessionContext';
 import { findCustomTool, executeCustomTool } from './customToolExecution';
@@ -94,7 +97,13 @@ export class ToolRouterSession<
 
     // Create singleton session context if custom tools are bound
     if (customToolsMap && userId) {
-      this.sessionContext = new SessionContextImpl(client, userId, sessionId, customToolsMap);
+      this.sessionContext = new SessionContextImpl(
+        client,
+        userId,
+        sessionId,
+        customToolsMap,
+        this.inlineCustomToolsPayload
+      );
     }
 
     telemetry.instrument(this, 'ToolRouterSession');
@@ -133,7 +142,8 @@ export class ToolRouterSession<
           toolSlug,
           { sessionId: this.sessionId, arguments: input },
           modifiers,
-          toolBySlug.get(toolSlug.toUpperCase())
+          toolBySlug.get(toolSlug.toUpperCase()),
+          { experimental: this.inlineExecuteExperimental() }
         );
       };
 
@@ -360,10 +370,11 @@ export class ToolRouterSession<
     query: string;
     toolkits?: string[];
   }): Promise<ToolRouterSessionSearchResponse> {
+    const experimental = this.inlineSearchExperimental();
     const searchParams = {
       queries: [{ use_case: params.query }],
       ...(params.toolkits?.length ? { toolkits: params.toolkits } : {}),
-      ...(this.inlineCustomToolsPayload ? { experimental: this.inlineCustomToolsPayload } : {}),
+      ...(experimental ? { experimental } : {}),
     };
     const response = await this.client.toolRouter.session.search(this.sessionId, searchParams);
     const transformed = transformSearchResponse(response);
@@ -406,6 +417,10 @@ export class ToolRouterSession<
     };
     if (options?.account) {
       executeParams.account = options.account;
+    }
+    const experimental = this.inlineExecuteExperimental();
+    if (experimental) {
+      executeParams.experimental = experimental;
     }
 
     const response = await this.client.toolRouter.session.execute(this.sessionId, executeParams);
@@ -458,6 +473,24 @@ export class ToolRouterSession<
     return (this.customToolsMap?.byFinalSlug.size ?? 0) > 0;
   }
 
+  private withInlineCustomToolsExperimental<T extends object>(experimental?: T): T | undefined {
+    if (!this.inlineCustomToolsPayload) {
+      return experimental;
+    }
+    return {
+      ...(experimental ?? {}),
+      ...this.inlineCustomToolsPayload,
+    } as T;
+  }
+
+  private inlineExecuteExperimental(): SessionExecuteParams.Experimental | undefined {
+    return this.withInlineCustomToolsExperimental<SessionExecuteParams.Experimental>();
+  }
+
+  private inlineSearchExperimental(): SessionSearchParams.Experimental | undefined {
+    return this.withInlineCustomToolsExperimental<SessionSearchParams.Experimental>();
+  }
+
   /** Parse an individual tool item from COMPOSIO_MULTI_EXECUTE_TOOL's tools array */
   private parseToolItem(item: unknown): { tool_slug: string; arguments: Record<string, unknown> } {
     if (typeof item !== 'object' || item === null) {
@@ -489,7 +522,8 @@ export class ToolRouterSession<
         COMPOSIO_MULTI_EXECUTE_TOOL,
         { sessionId: this.sessionId, arguments: input },
         modifiers,
-        multiExecuteTool
+        multiExecuteTool,
+        { experimental: this.inlineExecuteExperimental() }
       );
     }
 
@@ -513,7 +547,8 @@ export class ToolRouterSession<
         COMPOSIO_MULTI_EXECUTE_TOOL,
         { sessionId: this.sessionId, arguments: input },
         modifiers,
-        multiExecuteTool
+        multiExecuteTool,
+        { experimental: this.inlineExecuteExperimental() }
       );
     }
 
@@ -533,7 +568,8 @@ export class ToolRouterSession<
         COMPOSIO_MULTI_EXECUTE_TOOL,
         { sessionId: this.sessionId, arguments: remoteInput },
         modifiers,
-        multiExecuteTool
+        multiExecuteTool,
+        { experimental: this.inlineExecuteExperimental() }
       );
     }
 

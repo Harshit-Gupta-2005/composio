@@ -28,7 +28,10 @@ from composio_client.types.tool_router.session_proxy_execute_response import (
 from composio_client.types.tool_router.session_search_response import (
     SessionSearchResponse,
 )
-from composio_client.types.tool_router import session_search_params
+from composio_client.types.tool_router import (
+    session_execute_params,
+    session_search_params,
+)
 
 from composio.client import HttpClient
 from composio.core.models.connected_accounts import ConnectionRequest
@@ -132,6 +135,7 @@ class ToolRouterSession(t.Generic[TTool, TToolCollection]):
                 user_id=user_id,
                 session_id=session_id,
                 custom_tools_map=custom_tools_map,
+                inline_custom_tools_payload=inline_custom_tools_payload,
             )
 
     def _has_custom_tools(self) -> bool:
@@ -149,6 +153,7 @@ class ToolRouterSession(t.Generic[TTool, TToolCollection]):
         return tools_model._wrap_execute_tool_for_tool_router(
             session_id=self.session_id,
             modifiers=modifiers,
+            inline_custom_tools_payload=self._inline_custom_tools_payload,
         )
 
     def tools(self, modifiers: t.Optional["Modifiers"] = None) -> TToolCollection:
@@ -698,12 +703,19 @@ class ToolRouterSession(t.Generic[TTool, TToolCollection]):
             )
 
         # Remote execution
-        return self._client.tool_router.session.execute(
-            session_id=self.session_id,
-            tool_slug=tool_slug,
-            arguments=arguments if arguments is not None else omit,
-            account=account if account is not None else omit,
-        )
+        execute_kwargs: t.Dict[str, t.Any] = {
+            "session_id": self.session_id,
+            "tool_slug": tool_slug,
+            "arguments": arguments if arguments is not None else omit,
+            "account": account if account is not None else omit,
+        }
+        if self._inline_custom_tools_payload is not None:
+            execute_kwargs["experimental"] = t.cast(
+                session_execute_params.Experimental,
+                self._inline_custom_tools_payload,
+            )
+
+        return self._client.tool_router.session.execute(**execute_kwargs)
 
     def custom_tools(
         self, *, toolkit: t.Optional[str] = None

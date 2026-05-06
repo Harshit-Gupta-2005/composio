@@ -1583,6 +1583,47 @@ class TestToolRouterExecution:
         assert result["error"] is None
         assert result["successful"] is True
 
+    def test_execute_endpoint_passes_inline_custom_tools(
+        self, tool_router, mock_client, mock_provider
+    ):
+        """Provider-wrapped session tools pass inline custom definitions."""
+        mock_execute_response = MagicMock()
+        mock_execute_response.data = {"result": "success"}
+        mock_execute_response.error = None
+        mock_client.tool_router.session.execute.return_value = mock_execute_response
+
+        from composio.core.models.tools import Tools as RealTools
+
+        inline_payload = {
+            "custom_tools": [
+                {
+                    "slug": "GREP",
+                    "name": "Grep",
+                    "description": "Search local text",
+                    "input_schema": {"type": "object", "properties": {}},
+                }
+            ]
+        }
+        real_tools = RealTools(
+            client=mock_client,
+            provider=mock_provider,
+            dangerously_allow_auto_upload_download_files=False,
+        )
+        execute_fn = real_tools._wrap_execute_tool_for_tool_router(
+            session_id="session_123",
+            inline_custom_tools_payload=inline_payload,
+        )
+
+        execute_fn("GMAIL_SEND_EMAIL", {"to": "test@example.com"})
+
+        mock_client.tool_router.session.execute.assert_called_once_with(
+            session_id="session_123",
+            tool_slug="GMAIL_SEND_EMAIL",
+            arguments={"to": "test@example.com"},
+            enable_auto_workbench_offload=True,
+            experimental=inline_payload,
+        )
+
     def test_modifiers_applied_in_tool_router_execution(
         self, tool_router, mock_client, mock_provider
     ):

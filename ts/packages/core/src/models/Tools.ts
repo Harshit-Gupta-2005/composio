@@ -54,12 +54,16 @@ import { telemetry } from '../telemetry/Telemetry';
 import { ComposioConfig } from '../composio';
 import { getToolkitVersion } from '../utils/toolkitVersion';
 import { handleToolExecutionError } from '../errors/ToolErrors';
-import type { SessionExecuteParams } from '@composio/client/resources/tool-router.mjs';
+import type { SessionExecuteParams } from '@composio/client/resources/tool-router/session/session.mjs';
 import { CONFIG_DEFAULTS } from '../utils/config-defaults';
 import { resolveEffectiveUploadAllowlist } from '../utils/fileDirs';
 import { schemaHasFileUploadable } from '../utils/modifiers/FileToolModifier.utils.neutral';
 
 const TOOL_ROUTER_SESSION_TOOLS_PAGE_LIMIT = 500;
+
+type ToolRouterSessionExecuteOptions = {
+  experimental?: SessionExecuteParams.Experimental;
+};
 
 /**
  * This class is used to manage tools in the Composio SDK.
@@ -1028,7 +1032,8 @@ export class Tools<
     toolSlug: string,
     body: ToolExecuteMetaParams,
     modifiers?: SessionExecuteMetaModifiers,
-    tool?: Tool
+    tool?: Tool,
+    options?: ToolRouterSessionExecuteOptions
   ): Promise<ToolExecuteResponse> {
     const executeParams = ToolExecuteMetaParamsSchema.safeParse(body);
     if (!executeParams.success) {
@@ -1056,6 +1061,9 @@ export class Tools<
       // direct tool offload when the backend session workbench allows it.
       enable_auto_workbench_offload: true,
     };
+    if (options?.experimental) {
+      executePayload.experimental = options.experimental;
+    }
 
     const response = await this.client.toolRouter.session.execute(body.sessionId, executePayload);
 

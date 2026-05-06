@@ -2332,6 +2332,41 @@ describe('ToolRouter', () => {
         account: 'work',
       });
     });
+
+    it('should pass inline custom tools to remote execute when custom tools are bound', async () => {
+      const grepTool = createCustomTool('GREP', {
+        name: 'Grep',
+        description: 'Search local text',
+        inputParams: z.object({ pattern: z.string() }),
+        execute: vi.fn(async () => ({ matches: [] })),
+      });
+      mockClient.toolRouter.session.create.mockResolvedValueOnce({
+        ...mockSessionCreateResponse,
+        experimental: {
+          custom_tools: [
+            {
+              slug: 'LOCAL_GREP',
+              original_slug: 'GREP',
+              extends_toolkit: null,
+            },
+          ],
+        },
+      });
+      mockClient.toolRouter.session.execute.mockResolvedValueOnce(mockExecuteResponse);
+
+      const session = await toolRouter.create(userId, {
+        experimental: { customTools: [grepTool] },
+      });
+      await session.execute('GMAIL_SEND_EMAIL', { to: 'user@example.com' });
+
+      expect(mockClient.toolRouter.session.execute).toHaveBeenCalledWith(sessionId, {
+        tool_slug: 'GMAIL_SEND_EMAIL',
+        arguments: { to: 'user@example.com' },
+        experimental: {
+          custom_tools: [expect.objectContaining({ slug: 'GREP' })],
+        },
+      });
+    });
   });
 
   describe('tools function', () => {
@@ -2493,6 +2528,121 @@ describe('ToolRouter', () => {
       });
       expect(executeGrep).toHaveBeenCalledWith({ pattern: 'needle' }, expect.anything());
       expect(mockClient.toolRouter.session.execute).not.toHaveBeenCalled();
+    });
+
+    it('should pass inline custom tools when routing remote provider executions', async () => {
+      const grepTool = createCustomTool('GREP', {
+        name: 'Grep',
+        description: 'Search local text',
+        inputParams: z.object({ pattern: z.string() }),
+        execute: vi.fn(async () => ({ matches: [] })),
+      });
+      const executeSessionTool = vi.fn().mockResolvedValue({
+        data: { ok: true },
+        error: null,
+        successful: true,
+      });
+      (Tools as any).mockImplementation(() => ({
+        getRawToolRouterSessionTools: vi
+          .fn()
+          .mockResolvedValue([
+            { slug: 'COMPOSIO_SEARCH_TOOLS' },
+            { slug: 'GMAIL_SEND_EMAIL', toolkit: { slug: 'gmail', name: 'Gmail' } },
+          ]),
+        executeSessionTool,
+      }));
+      mockClient.toolRouter.session.create.mockResolvedValueOnce({
+        ...mockSessionCreateResponse,
+        experimental: {
+          custom_tools: [
+            {
+              slug: 'LOCAL_GREP',
+              original_slug: 'GREP',
+              extends_toolkit: null,
+            },
+          ],
+        },
+      });
+      mockProvider.wrapTools.mockReturnValue('mocked-custom-tools');
+
+      const session = await toolRouter.create(userId, {
+        experimental: { customTools: [grepTool] },
+      });
+      await session.tools();
+      const routingExecute = mockProvider.wrapTools.mock.calls[0][1] as (
+        toolSlug: string,
+        input: Record<string, unknown>
+      ) => Promise<unknown>;
+      await routingExecute('GMAIL_SEND_EMAIL', { to: 'user@example.com' });
+
+      expect(executeSessionTool).toHaveBeenCalledWith(
+        'GMAIL_SEND_EMAIL',
+        { sessionId, arguments: { to: 'user@example.com' } },
+        undefined,
+        { slug: 'GMAIL_SEND_EMAIL', toolkit: { slug: 'gmail', name: 'Gmail' } },
+        {
+          experimental: {
+            custom_tools: [expect.objectContaining({ slug: 'GREP' })],
+          },
+        }
+      );
+    });
+
+    it('should pass inline custom tools when routing remote multi-execute batches', async () => {
+      const grepTool = createCustomTool('GREP', {
+        name: 'Grep',
+        description: 'Search local text',
+        inputParams: z.object({ pattern: z.string() }),
+        execute: vi.fn(async () => ({ matches: [] })),
+      });
+      const executeSessionTool = vi.fn().mockResolvedValue({
+        data: { results: [] },
+        error: null,
+        successful: true,
+      });
+      const multiExecuteTool = { slug: 'COMPOSIO_MULTI_EXECUTE_TOOL' };
+      (Tools as any).mockImplementation(() => ({
+        getRawToolRouterSessionTools: vi
+          .fn()
+          .mockResolvedValue([{ slug: 'COMPOSIO_SEARCH_TOOLS' }, multiExecuteTool]),
+        executeSessionTool,
+      }));
+      mockClient.toolRouter.session.create.mockResolvedValueOnce({
+        ...mockSessionCreateResponse,
+        experimental: {
+          custom_tools: [
+            {
+              slug: 'LOCAL_GREP',
+              original_slug: 'GREP',
+              extends_toolkit: null,
+            },
+          ],
+        },
+      });
+      mockProvider.wrapTools.mockReturnValue('mocked-custom-tools');
+
+      const session = await toolRouter.create(userId, {
+        experimental: { customTools: [grepTool] },
+      });
+      await session.tools();
+      const routingExecute = mockProvider.wrapTools.mock.calls[0][1] as (
+        toolSlug: string,
+        input: Record<string, unknown>
+      ) => Promise<unknown>;
+      const input = { tools: [{ tool_slug: 'GMAIL_SEND_EMAIL', arguments: { to: 'a@b.com' } }] };
+      await routingExecute('COMPOSIO_MULTI_EXECUTE_TOOL', input);
+
+      expect(executeSessionTool).toHaveBeenCalledWith(
+        'COMPOSIO_MULTI_EXECUTE_TOOL',
+        { sessionId, arguments: input },
+        undefined,
+        multiExecuteTool,
+        {
+          experimental: {
+            custom_tools: [expect.objectContaining({ slug: 'GREP' })],
+          },
+        }
+      );
     });
 
     it('should not expose custom tools unless SDK preload selects them', async () => {

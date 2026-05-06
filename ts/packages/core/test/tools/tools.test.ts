@@ -1073,6 +1073,42 @@ describe('Tools', () => {
         });
       });
 
+      it('should pass inline custom tools to tool router session execute', async () => {
+        const toolSlug = 'COMPOSIO_TOOL';
+        const body = {
+          sessionId,
+          arguments: { query: 'test' },
+        };
+
+        mockClient.toolRouter.session.execute.mockResolvedValueOnce({
+          data: { results: true },
+          error: null,
+          log_id: '123',
+        });
+
+        await context.tools.executeSessionTool(toolSlug, body, undefined, undefined, {
+          experimental: {
+            custom_tools: [
+              {
+                slug: 'GREP',
+                name: 'Grep',
+                description: 'Search local text',
+                input_schema: { type: 'object', properties: {} },
+              },
+            ],
+          },
+        });
+
+        expect(mockClient.toolRouter.session.execute).toHaveBeenCalledWith(sessionId, {
+          tool_slug: toolSlug,
+          arguments: body.arguments,
+          enable_auto_workbench_offload: true,
+          experimental: {
+            custom_tools: [expect.objectContaining({ slug: 'GREP' })],
+          },
+        });
+      });
+
       it('should throw validation error for invalid parameters', async () => {
         const invalidBody = {
           // missing sessionId
