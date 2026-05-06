@@ -84,11 +84,25 @@ const getAccountHealth = experimental_createTool('GET_ACCOUNT_HEALTH', {
   }),
 });
 
+const getAccountAuditLog = experimental_createTool('GET_ACCOUNT_AUDIT_LOG', {
+  name: 'Get account audit log',
+  description:
+    'Return internal account audit events. This overrides the toolkit preload default and remains search-only.',
+  preload: false,
+  inputParams: z.object({
+    user_id: z.string().describe('Internal user ID'),
+  }),
+  execute: async ({ user_id }) => ({
+    user_id,
+    events: ['login', 'settings_viewed'],
+  }),
+});
+
 const internalAdmin = experimental_createToolkit('INTERNAL_ADMIN', {
   name: 'Internal admin',
   description: 'Demo internal administration tools.',
   preload: true,
-  tools: [getAccountHealth],
+  tools: [getAccountHealth, getAccountAuditLog],
 });
 
 const composio = new Composio({
