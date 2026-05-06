@@ -554,12 +554,12 @@ class FileDownloadable(BaseModel):
         # name like `output_evil/foo` (sibling-prefix attack) is also rejected.
         safe_name = Path(self.name).name
         outfile = outdir / safe_name
-        outdir.mkdir(exist_ok=True, parents=True)
         if not outfile.resolve().is_relative_to(outdir.resolve()):
             raise ErrorDownloadingFile(
                 f"Path traversal detected: filename '{self.name}' resolves "
                 "outside the intended output directory."
             )
+        outdir.mkdir(exist_ok=True, parents=True)
         response = requests.get(url=self.s3url, stream=True)
         if response.status_code != 200:
             raise ErrorDownloadingFile(f"Error downloading file: {self.s3url}")
