@@ -2012,8 +2012,10 @@ class TestFileDownloadablePathTraversal:
             mimetype="application/octet-stream",
             s3url="https://example.com/file",
         )
-        with patch("composio.core.models._files.requests.get",
-                   return_value=self._mock_response(b"#!/bin/sh\n")):
+        with patch(
+            "composio.core.models._files.requests.get",
+            return_value=self._mock_response(b"#!/bin/sh\n"),
+        ):
             written = f.download(outdir)
 
         # Traversal sequence collapsed to basename and stayed inside outdir.
@@ -2029,8 +2031,10 @@ class TestFileDownloadablePathTraversal:
             mimetype="application/octet-stream",
             s3url="https://example.com/file",
         )
-        with patch("composio.core.models._files.requests.get",
-                   return_value=self._mock_response(b"x")):
+        with patch(
+            "composio.core.models._files.requests.get",
+            return_value=self._mock_response(b"x"),
+        ):
             written = f.download(outdir)
 
         # `Path('/etc/passwd').name == 'passwd'` — absolute path is stripped.
@@ -2048,8 +2052,10 @@ class TestFileDownloadablePathTraversal:
             mimetype="application/octet-stream",
             s3url="https://example.com/file",
         )
-        with patch("composio.core.models._files.requests.get",
-                   return_value=self._mock_response()):
+        with patch(
+            "composio.core.models._files.requests.get",
+            return_value=self._mock_response(),
+        ):
             with pytest.raises(ErrorDownloadingFile, match="Path traversal detected"):
                 f.download(outdir)
         # No file was written under the parent.
@@ -2062,8 +2068,10 @@ class TestFileDownloadablePathTraversal:
             mimetype="application/pdf",
             s3url="https://example.com/file",
         )
-        with patch("composio.core.models._files.requests.get",
-                   return_value=self._mock_response(b"%PDF-1.4")):
+        with patch(
+            "composio.core.models._files.requests.get",
+            return_value=self._mock_response(b"%PDF-1.4"),
+        ):
             written = f.download(outdir)
 
         assert written == outdir / "report.pdf"
