@@ -2437,6 +2437,9 @@ describe('ToolRouter', () => {
     });
 
     it('should include custom tools with preload enabled locally', async () => {
+      const executeGrep = vi.fn(async ({ pattern }: { pattern: string }) => ({
+        matches: [pattern],
+      }));
       const grepTool = createCustomTool('GREP', {
         name: 'Grep',
         description: 'Search local text',
@@ -2444,7 +2447,7 @@ describe('ToolRouter', () => {
         inputParams: z.object({
           pattern: z.string().describe('Pattern to search for'),
         }),
-        execute: vi.fn(async () => ({ matches: [] })),
+        execute: executeGrep,
       });
 
       mockClient.toolRouter.session.create.mockResolvedValueOnce({
@@ -2477,6 +2480,19 @@ describe('ToolRouter', () => {
       expect(wrappedTools[1].description).toContain(DIRECT_CUSTOM_TOOL_DESCRIPTION_PREFIX);
       expect(wrappedTools[1].toolkit).toEqual({ slug: 'custom', name: 'Custom' });
       expect(tools).toBe('mocked-custom-tools');
+
+      const routingExecute = mockProvider.wrapTools.mock.calls[0][1] as (
+        toolSlug: string,
+        input: Record<string, unknown>
+      ) => Promise<unknown>;
+      const result = await routingExecute('SERVER_GREP', { pattern: 'needle' });
+      expect(result).toEqual({
+        data: { matches: ['needle'] },
+        error: null,
+        successful: true,
+      });
+      expect(executeGrep).toHaveBeenCalledWith({ pattern: 'needle' }, expect.anything());
+      expect(mockClient.toolRouter.session.execute).not.toHaveBeenCalled();
     });
 
     it('should not expose custom tools unless SDK preload selects them', async () => {

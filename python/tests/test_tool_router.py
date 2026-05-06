@@ -1232,7 +1232,7 @@ class TestToolRouter:
             preload=True,
         )
         def grep(input: GrepInput, ctx):
-            return {"matches": []}
+            return {"matches": [input.pattern]}
 
         mock_response = mock_client.tool_router.session.create.return_value
         mock_response.tool_router_tools = ["COMPOSIO_SEARCH_TOOLS"]
@@ -1269,6 +1269,15 @@ class TestToolRouter:
         assert DIRECT_CUSTOM_TOOL_DESCRIPTION_PREFIX in wrapped_tools[1].description
         assert wrapped_tools[1].toolkit.slug == "custom"
         assert result == "mocked-custom-tools"
+
+        execute_tool = mock_provider.wrap_tools.call_args.kwargs["execute_tool"]
+        local_result = execute_tool(slug="SERVER_GREP", arguments={"pattern": "needle"})
+        assert local_result == {
+            "data": {"matches": ["needle"]},
+            "error": None,
+            "successful": True,
+        }
+        mock_client.tool_router.session.execute.assert_not_called()
 
     @patch("composio.core.models.tools.Tools")
     def test_tools_function_with_modifiers(

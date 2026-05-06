@@ -354,6 +354,13 @@ class ToolRouterSession(t.Generic[TTool, TToolCollection]):
                     )
 
                 return result
+            entry = find_custom_tool(self._custom_tools_map, slug)
+            if entry:
+                return execute_custom_tool(
+                    entry,
+                    arguments,
+                    t.cast(SessionContextImpl, self._session_context),
+                )
             # Non-multi-execute meta tools always go to backend
             return backend_execute(slug, arguments)
 

@@ -125,6 +125,10 @@ export class ToolRouterSession<
         if (toolSlug === COMPOSIO_MULTI_EXECUTE_TOOL) {
           return this.routeMultiExecute(input, ToolsModel, sessionTools, modifiers);
         }
+        const customTool = findCustomTool(this.customToolsMap, toolSlug);
+        if (customTool) {
+          return executeCustomTool(customTool, input, this.sessionContext!);
+        }
         return ToolsModel.executeSessionTool(
           toolSlug,
           { sessionId: this.sessionId, arguments: input },
