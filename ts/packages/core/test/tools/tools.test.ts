@@ -355,6 +355,31 @@ describe('Tools', () => {
     });
   });
 
+  describe('getRawToolRouterSessionTools', () => {
+    it('should fetch all paginated session tool pages', async () => {
+      mockClient.toolRouter.session.tools
+        .mockResolvedValueOnce({
+          items: [{ ...toolMocks.rawTool, slug: 'FIRST_TOOL' }],
+          next_cursor: 'next_page',
+        })
+        .mockResolvedValueOnce({
+          items: [{ ...toolMocks.rawTool, slug: 'SECOND_TOOL' }],
+          next_cursor: null,
+        });
+
+      const result = await context.tools.getRawToolRouterSessionTools('session_123');
+
+      expect(result.map(tool => tool.slug)).toEqual(['FIRST_TOOL', 'SECOND_TOOL']);
+      expect(mockClient.toolRouter.session.tools).toHaveBeenNthCalledWith(1, 'session_123', {
+        limit: 500,
+      });
+      expect(mockClient.toolRouter.session.tools).toHaveBeenNthCalledWith(2, 'session_123', {
+        limit: 500,
+        cursor: 'next_page',
+      });
+    });
+  });
+
   describe('getRawComposioToolBySlug', () => {
     it('should fetch a tool by slug from the API', async () => {
       const slug = 'TOOL_SLUG';

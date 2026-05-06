@@ -594,6 +594,33 @@ describe('ConnectedAccounts', () => {
       expect(result.wordId).toBe('castle');
       expect(result.alias).toBe('Work Gmail');
     });
+
+    it('should accept revoked connected account status from the generated client', async () => {
+      const nanoid = 'conn_revoked';
+      const mockResponse = {
+        id: nanoid,
+        status: ConnectedAccountStatuses.REVOKED,
+        auth_config: {
+          id: 'test-auth-config',
+          is_composio_managed: true,
+          is_disabled: false,
+        },
+        is_disabled: false,
+        created_at: '2023-01-01T00:00:00Z',
+        updated_at: '2023-01-01T00:00:00Z',
+        status_reason: 'revoked by user',
+        toolkit: {
+          slug: 'gmail',
+        },
+      };
+
+      extendedMockClient.connectedAccounts.retrieve.mockResolvedValueOnce(mockResponse);
+
+      const result = await connectedAccounts.get(nanoid);
+
+      expect(result.status).toBe(ConnectedAccountStatuses.REVOKED);
+      expect(result.statusReason).toBe('revoked by user');
+    });
   });
 
   describe('delete', () => {
