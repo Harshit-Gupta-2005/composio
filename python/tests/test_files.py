@@ -2076,3 +2076,50 @@ class TestFileDownloadablePathTraversal:
 
         assert written == outdir / "report.pdf"
         assert written.read_bytes() == b"%PDF-1.4"
+
+    def test_basename_collapse_through_subdir_is_rejected(self, tmp_path):
+        """`Path('foo/..').name == '..'` — the basename strip of a name that
+        traverses *through* a subdir collapses to `..`, then the
+        `is_relative_to()` check rejects it. Explicit coverage of the
+        residual-`..` path through basename normalization (the plain `..`
+        test covers the no-subdir case)."""
+        from composio.exceptions import ErrorDownloadingFile
+
+        outdir = tmp_path / "safe"
+        f = FileDownloadable(
+            name="foo/..",
+            mimetype="application/octet-stream",
+            s3url="https://example.com/file",
+        )
+        with patch(
+            "composio.core.models._files.requests.get",
+            return_value=self._mock_response(),
+        ):
+            with pytest.raises(ErrorDownloadingFile, match="Path traversal detected"):
+                f.download(outdir)
+        # SEC-316 P3.1: check runs before mkdir, so outdir is not created
+        # as a side effect of a rejected payload.
+        assert not outdir.exists()
+
+    def test_empty_name_safe_fails_at_write_time(self, tmp_path):
+        """`Path('').name == ''` — `outdir / ''` resolves to `outdir` itself,
+        which passes the containment check (a path is relative to itself).
+        The write then fails with `IsADirectoryError` because the target is
+        the directory. Documents the safe-fail behavior so a future change
+        to the check cannot silently weaken it without breaking this test."""
+        outdir = tmp_path / "safe"
+        f = FileDownloadable(
+            name="",
+            mimetype="application/octet-stream",
+            s3url="https://example.com/file",
+        )
+        with patch(
+            "composio.core.models._files.requests.get",
+            return_value=self._mock_response(b"x"),
+        ):
+            with pytest.raises(IsADirectoryError):
+                f.download(outdir)
+        # outdir got created (mkdir runs after the check, which passed),
+        # but no file was written inside it.
+        assert outdir.is_dir()
+        assert list(outdir.iterdir()) == []
