@@ -71,17 +71,13 @@ export class SessionContextImpl implements SessionContext {
       tool_slug: toolSlug,
       arguments: arguments_,
     };
-    const experimental = this.inlineExecuteExperimental();
-    if (experimental) {
-      executeParams.experimental = experimental;
+    if (this.inlineCustomToolsPayload) {
+      executeParams.experimental =
+        this.inlineCustomToolsPayload as SessionExecuteParams.Experimental;
     }
 
     const response = await this.client.toolRouter.session.execute(this.sessionId, executeParams);
     return ToolRouterSessionExecuteResponseSchema.parse(transformExecuteResponse(response));
-  }
-
-  private inlineExecuteExperimental(): SessionExecuteParams.Experimental | undefined {
-    return this.inlineCustomToolsPayload as SessionExecuteParams.Experimental | undefined;
   }
 
   /**

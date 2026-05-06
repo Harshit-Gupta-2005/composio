@@ -473,22 +473,12 @@ export class ToolRouterSession<
     return (this.customToolsMap?.byFinalSlug.size ?? 0) > 0;
   }
 
-  private withInlineCustomToolsExperimental<T extends object>(experimental?: T): T | undefined {
-    if (!this.inlineCustomToolsPayload) {
-      return experimental;
-    }
-    return {
-      ...(experimental ?? {}),
-      ...this.inlineCustomToolsPayload,
-    } as T;
-  }
-
   private inlineExecuteExperimental(): SessionExecuteParams.Experimental | undefined {
-    return this.withInlineCustomToolsExperimental<SessionExecuteParams.Experimental>();
+    return this.inlineCustomToolsPayload as SessionExecuteParams.Experimental | undefined;
   }
 
   private inlineSearchExperimental(): SessionSearchParams.Experimental | undefined {
-    return this.withInlineCustomToolsExperimental<SessionSearchParams.Experimental>();
+    return this.inlineCustomToolsPayload as SessionSearchParams.Experimental | undefined;
   }
 
   /** Parse an individual tool item from COMPOSIO_MULTI_EXECUTE_TOOL's tools array */

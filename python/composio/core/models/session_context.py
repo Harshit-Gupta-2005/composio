@@ -142,18 +142,22 @@ class SessionContextImpl:
         serialized = _serialize_arguments(arguments)
 
         # Fall back to remote execution
-        execute_kwargs: t.Dict[str, t.Any] = {
-            "session_id": self._session_id,
-            "tool_slug": tool_slug,
-            "arguments": serialized,
-        }
         if self._inline_custom_tools_payload is not None:
-            execute_kwargs["experimental"] = t.cast(
-                session_execute_params.Experimental,
-                self._inline_custom_tools_payload,
+            return self._client.tool_router.session.execute(
+                session_id=self._session_id,
+                tool_slug=tool_slug,
+                arguments=serialized,
+                experimental=t.cast(
+                    session_execute_params.Experimental,
+                    self._inline_custom_tools_payload,
+                ),
             )
 
-        return self._client.tool_router.session.execute(**execute_kwargs)
+        return self._client.tool_router.session.execute(
+            session_id=self._session_id,
+            tool_slug=tool_slug,
+            arguments=serialized,
+        )
 
     def proxy_execute(
         self,

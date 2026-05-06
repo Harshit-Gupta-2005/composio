@@ -536,21 +536,28 @@ class Tools(Resource, t.Generic[TTool, TToolCollection]):
             # Serialize any Pydantic model instances before sending to the API
             processed_arguments = _serialize_arguments(processed_arguments)
 
-            execute_kwargs: t.Dict[str, t.Any] = {
-                "session_id": session_id,
-                "tool_slug": slug,
-                "arguments": processed_arguments,
-                # Provider-wrapped session tools are agentic calls, so they opt into
-                # direct tool offload when the backend session workbench allows it.
-                "enable_auto_workbench_offload": True,
-            }
             if inline_custom_tools_payload is not None:
-                execute_kwargs["experimental"] = t.cast(
-                    session_execute_params.Experimental,
-                    inline_custom_tools_payload,
+                response = self._client.tool_router.session.execute(
+                    session_id=session_id,
+                    tool_slug=slug,
+                    arguments=processed_arguments,
+                    # Provider-wrapped session tools are agentic calls, so they opt into
+                    # direct tool offload when the backend session workbench allows it.
+                    enable_auto_workbench_offload=True,
+                    experimental=t.cast(
+                        session_execute_params.Experimental,
+                        inline_custom_tools_payload,
+                    ),
                 )
-
-            response = self._client.tool_router.session.execute(**execute_kwargs)
+            else:
+                response = self._client.tool_router.session.execute(
+                    session_id=session_id,
+                    tool_slug=slug,
+                    arguments=processed_arguments,
+                    # Provider-wrapped session tools are agentic calls, so they opt into
+                    # direct tool offload when the backend session workbench allows it.
+                    enable_auto_workbench_offload=True,
+                )
 
             # Convert response to standard format
             result: ToolExecutionResponse = {

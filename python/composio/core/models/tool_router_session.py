@@ -703,19 +703,24 @@ class ToolRouterSession(t.Generic[TTool, TToolCollection]):
             )
 
         # Remote execution
-        execute_kwargs: t.Dict[str, t.Any] = {
-            "session_id": self.session_id,
-            "tool_slug": tool_slug,
-            "arguments": arguments if arguments is not None else omit,
-            "account": account if account is not None else omit,
-        }
         if self._inline_custom_tools_payload is not None:
-            execute_kwargs["experimental"] = t.cast(
-                session_execute_params.Experimental,
-                self._inline_custom_tools_payload,
+            return self._client.tool_router.session.execute(
+                session_id=self.session_id,
+                tool_slug=tool_slug,
+                arguments=arguments if arguments is not None else omit,
+                account=account if account is not None else omit,
+                experimental=t.cast(
+                    session_execute_params.Experimental,
+                    self._inline_custom_tools_payload,
+                ),
             )
 
-        return self._client.tool_router.session.execute(**execute_kwargs)
+        return self._client.tool_router.session.execute(
+            session_id=self.session_id,
+            tool_slug=tool_slug,
+            arguments=arguments if arguments is not None else omit,
+            account=account if account is not None else omit,
+        )
 
     def custom_tools(
         self, *, toolkit: t.Optional[str] = None
