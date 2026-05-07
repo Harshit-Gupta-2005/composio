@@ -17,6 +17,7 @@ import {
   ToolRouterSessionPreloadConfig,
   ToolRouterSessionWarning,
   ToolRouterUpdateSessionConfig,
+  ToolRouterUpdateSessionConfigSchema,
 } from '../types/toolRouter.types';
 import {
   transformSearchResponse,
@@ -51,6 +52,7 @@ import { findCustomToolMapEntryByFinalSlug } from './CustomTool';
 import { transformProxyParams } from './proxyParamsTransform';
 import { inlineCustomToolsExperimental } from './inlineCustomToolsPayload';
 import { transformToolRouterUpdateParams } from '../lib/toolRouterParams';
+import { getPreloadedCustomToolSlugs } from './CustomTool';
 
 const COMPOSIO_MULTI_EXECUTE_TOOL = 'COMPOSIO_MULTI_EXECUTE_TOOL';
 export const DIRECT_CUSTOM_TOOL_DESCRIPTION_PREFIX =
@@ -67,7 +69,7 @@ export class ToolRouterSession<
   public preload: ToolRouterSessionPreloadConfig;
   public configVersion?: number;
   public warnings: ToolRouterSessionWarning[];
-  private readonly preloadedCustomToolSlugs: string[];
+  private preloadedCustomToolSlugs: string[];
   private readonly inlineCustomToolsPayload: ToolRouterSessionMetadata['inlineCustomToolsPayload'];
 
   /** Singleton session context — shared across all custom tool executions */
@@ -479,11 +481,21 @@ export class ToolRouterSession<
    * Mutates this session's `configVersion`, `preload`, and `warnings` in-place.
    */
   async update(config: ToolRouterUpdateSessionConfig): Promise<void> {
-    const params = transformToolRouterUpdateParams(config);
+    const parsed = ToolRouterUpdateSessionConfigSchema.safeParse(config);
+    if (!parsed.success) {
+      throw new ValidationError('Failed to parse update session config', {
+        cause: parsed.error,
+      });
+    }
+    const params = transformToolRouterUpdateParams(parsed.data);
     const response = await this.client.toolRouter.session.patch(this.sessionId, params);
     this.configVersion = response.config_version;
     this.preload = response.config.preload;
     this.warnings = response.warnings ?? [];
+    this.preloadedCustomToolSlugs = getPreloadedCustomToolSlugs(
+      this.customToolsMap,
+      this.preload.tools === 'all'
+    );
   }
 
   // ── Private helpers ──────────────────────────────────────────

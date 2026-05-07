@@ -130,6 +130,66 @@ export const transformToolRouterWorkbenchParams = (
   };
 };
 
+/**
+ * PATCH-safe variant of transformToolRouterManageConnectionsParams.
+ * Does NOT apply defaults — only includes fields explicitly present in the input.
+ */
+export const transformToolRouterUpdateManageConnectionsParams = (
+  params: boolean | z.infer<typeof ToolRouterConfigManageConnectionsSchema>
+): SessionPatchParams.ManageConnections => {
+  if (typeof params === 'boolean') {
+    return { enable: params };
+  }
+
+  const parsedResult = ToolRouterConfigManageConnectionsSchema.safeParse(params);
+  if (!parsedResult.success) {
+    throw new ValidationError('Failed to parse manage connections config', {
+      cause: parsedResult.error,
+    });
+  }
+
+  const config = parsedResult.data;
+  const result: Record<string, unknown> = {};
+  if (config.enable !== undefined) {
+    result.enable = config.enable;
+  }
+  if (config.callbackUrl !== undefined) {
+    result.callback_url = config.callbackUrl;
+  }
+  if (config.waitForConnections !== undefined) {
+    result.enable_wait_for_connections = config.waitForConnections;
+  }
+  return result as SessionPatchParams.ManageConnections;
+};
+
+/**
+ * PATCH-safe variant of transformToolRouterWorkbenchParams.
+ * Does NOT apply `enable ?? true` default — only includes fields explicitly present.
+ */
+export const transformToolRouterUpdateWorkbenchParams = (
+  params: {
+    enable?: boolean;
+    enableProxyExecution?: boolean;
+    autoOffloadThreshold?: number;
+    sandboxSize?: 'standard' | 'medium' | 'large' | 'xlarge';
+  }
+): SessionPatchParams.Workbench => {
+  const result: Record<string, unknown> = {};
+  if (params.enable !== undefined) {
+    result.enable = params.enable;
+  }
+  if (params.enableProxyExecution !== undefined) {
+    result.enable_proxy_execution = params.enableProxyExecution;
+  }
+  if (params.autoOffloadThreshold !== undefined) {
+    result.auto_offload_threshold = params.autoOffloadThreshold;
+  }
+  if (params.sandboxSize !== undefined) {
+    result.sandbox_size = params.sandboxSize;
+  }
+  return result as SessionPatchParams.Workbench;
+};
+
 export const transformToolRouterMultiAccountParams = (
   params?: ToolRouterCreateSessionConfig['multiAccount']
 ): SessionCreateParams.MultiAccount | undefined => {
@@ -194,21 +254,21 @@ export const transformToolRouterUpdateParams = (
     if (config.manageConnections === null) {
       params.manage_connections = null;
     } else {
-      params.manage_connections = transformToolRouterManageConnectionsParams(config.manageConnections);
+      params.manage_connections = transformToolRouterUpdateManageConnectionsParams(config.manageConnections);
     }
   }
   if (config.workbench !== undefined) {
     if (config.workbench === null) {
       params.workbench = null;
     } else {
-      params.workbench = transformToolRouterWorkbenchParams(config.workbench);
+      params.workbench = transformToolRouterUpdateWorkbenchParams(config.workbench);
     }
   }
   if (config.multiAccount !== undefined) {
     if (config.multiAccount === null) {
       params.multi_account = null;
     } else {
-      params.multi_account = transformToolRouterMultiAccountParams(config.multiAccount);
+      params.multi_account = transformToolRouterMultiAccountParams(config.multiAccount as ToolRouterCreateSessionConfig['multiAccount']);
     }
   }
   if (config.preload !== undefined) {
