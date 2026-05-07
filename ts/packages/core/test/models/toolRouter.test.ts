@@ -1031,12 +1031,12 @@ describe('ToolRouter', () => {
         });
       });
 
-      it('should create a session with connectedAccounts', async () => {
+      it('should create a session with connectedAccounts (string coerced to array)', async () => {
         mockClient.toolRouter.session.create.mockResolvedValueOnce(mockSessionCreateResponse);
 
         const config: ToolRouterCreateSessionConfig = {
           connectedAccounts: {
-            gmail: ['conn_123'],
+            gmail: 'conn_123',
             slack: ['conn_456'],
           },
         };
@@ -1066,7 +1066,7 @@ describe('ToolRouter', () => {
             gmail: 'auth_config_123',
           },
           connectedAccounts: {
-            slack: ['conn_456'],
+            slack: 'conn_456',
           },
         };
 

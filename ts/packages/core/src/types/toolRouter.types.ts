@@ -202,9 +202,16 @@ const ToolRouterCreateSessionConfigBaseSchema = z
       )
       .default({}),
     connectedAccounts: z
-      .record(z.string(), z.array(z.string()))
+      .record(z.string(), z.union([z.string(), z.array(z.string())]))
+      .transform((rec) => {
+        const out: Record<string, string[]> = {};
+        for (const [k, v] of Object.entries(rec)) {
+          out[k] = typeof v === 'string' ? [v] : v;
+        }
+        return out;
+      })
       .describe(
-        'The connected accounts to use in the tool router session. The key is the toolkit slug, the value is an array of connected account ids. Only one account per toolkit is allowed when multi-account mode is disabled.'
+        'The connected accounts to use in the tool router session. The key is the toolkit slug, the value is a connected account id or an array of ids. Only one account per toolkit is allowed when multi-account mode is disabled.'
       )
       .default({}),
     manageConnections: z
