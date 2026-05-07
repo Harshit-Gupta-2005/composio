@@ -597,6 +597,8 @@ class ToolRouter(Resource, t.Generic[TTool, TToolCollection]):
         :param auth_configs: Optional mapping of toolkit slug to auth config ID.
                            Example: {'github': 'ac_xxx', 'slack': 'ac_yyy'}
         :param connected_accounts: Optional mapping of toolkit slug to connected account IDs.
+                                  Only one account per toolkit is allowed when multi-account
+                                  mode is disabled.
                                   Example: {'github': ['ca_xxx'], 'slack': ['ca_yyy']}
         :param workbench: Optional workbench configuration. Dict with:
                          - 'enable' (bool): Whether to enable the workbench entirely.

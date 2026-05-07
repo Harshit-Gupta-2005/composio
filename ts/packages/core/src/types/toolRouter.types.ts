@@ -202,9 +202,9 @@ const ToolRouterCreateSessionConfigBaseSchema = z
       )
       .default({}),
     connectedAccounts: z
-      .record(z.string(), z.string())
+      .record(z.string(), z.array(z.string()))
       .describe(
-        'The connected accounts to use in the tool router session. The key is the toolkit slug, the value is the connected account id.'
+        'The connected accounts to use in the tool router session. The key is the toolkit slug, the value is an array of connected account ids. Only one account per toolkit is allowed when multi-account mode is disabled.'
       )
       .default({}),
     manageConnections: z
