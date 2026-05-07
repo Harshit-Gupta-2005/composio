@@ -643,7 +643,6 @@ Use `composio.use()` to rehydrate an existing session and attach custom tools to
 <Tabs groupId="language" items={['TypeScript', 'Python']} persist>
 <Tab value="TypeScript">
 ```typescript
-// @noErrors
 import { Composio, experimental_createTool } from "@composio/core";
 import { z } from "zod/v3";
 
@@ -681,7 +680,6 @@ Without custom tools, `composio.use()` simply rehydrates the session:
 <Tabs groupId="language" items={['TypeScript', 'Python']} persist>
 <Tab value="TypeScript">
 ```typescript
-// @noErrors
 import { Composio } from "@composio/core";
 const composio = new Composio({ apiKey: "your_api_key" });
 // ---cut---
