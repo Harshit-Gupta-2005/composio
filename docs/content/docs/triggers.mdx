@@ -12,38 +12,21 @@ When events occur in apps — a new Slack message, a GitHub commit, an incoming 
 
 | Type | What happens | Examples |
 |---|---|---|
-| **Webhook** | The provider pushes events to a Composio-issued ingress URL in real time. Composio verifies the provider's signature, then fans the event out to matching trigger instances. | Slack, GitHub, Asana, Notion, Outlook, ... |
-| **Polling** | Composio polls the provider on a schedule. Composio managed auth has a 15-minute minimum interval; expect that as the worst-case delay between source event and delivery. | Gmail |
-
-The delivery type is a property of the trigger type, not something you choose.
-
-## Setup at a glance
-
-Two pieces of setup, both one-time:
-
-| Piece | When it's needed | Scope | Where it's documented |
-|---|---|---|---|
-| **Webhook subscription** — your URL where Composio delivers signed events | Always | Once per project | [Subscribing to triggers](/docs/setting-up-triggers/subscribing-to-events) |
-| **Webhook endpoint** — the URL the provider posts events to | Only when the trigger type requires it | Once per OAuth app | [Configuring the webhook endpoint](/docs/setting-up-triggers/creating-triggers#configuring-the-webhook-endpoint) |
-
-Whether a webhook endpoint needs to be configured is a property of the trigger type itself — `composio.triggers.get_type()` exposes a `requires_webhook_endpoint` flag, and the trigger creation call returns a `400` if the flag is true and no endpoint exists yet.
-
-For Composio-managed OAuth apps the flag is always false — endpoints are pre-provisioned and you never configure them. With your own OAuth app it depends on the trigger.
+| **Webhook** | The provider pushes events to a Composio-issued ingress URL in real time. Composio verifies the provider's signature, processes the payload, and fans the event out to matching trigger instances. | Slack, Asana, Notion, Outlook, ... |
+| **Polling** | Composio polls the provider on a schedule. Composio managed auth has a 15-minute minimum interval; expect that as the worst-case delay between source event and delivery. | Gmail, Google Calendar |
 
 ## End-to-end flow
 
 For every webhook trigger, an event takes the same path on the way to your application:
 
 ```
-provider event ──▶ Composio ingress ──▶ trigger fan-out ──▶ webhook subscription ──▶ your endpoint
+provider event ──▶ Composio ingress ──▶ trigger fan-out ──▶ webhook subscription ──▶ your application
 ```
 
-Two webhook URLs sit on opposite sides of Composio. Don't confuse them:
+Two URLs sit on opposite sides of Composio, both configured once:
 
-| URL | Direction | Who configures it |
-|---|---|---|
-| **Ingress** (`/api/v3.1/webhook_ingress/...`) | Provider → Composio | Composio in most cases; you when the trigger type's `requires_webhook_endpoint` flag is true — see [Configuring the webhook endpoint](/docs/setting-up-triggers/creating-triggers#configuring-the-webhook-endpoint) |
-| **Webhook subscription** (your URL) | Composio → your application | You, once per project — see [Subscribing to triggers](/docs/setting-up-triggers/subscribing-to-events) |
+- **Webhook subscription** — your URL where Composio delivers signed events. One per project. See [Subscribing to triggers](/docs/setting-up-triggers/subscribing-to-events).
+- **Webhook endpoint** — the ingress URL the provider posts events to. Composio configures this for you in most cases; for some webhook triggers, you may need to set it up once per OAuth app — see [Configuring the webhook endpoint](/docs/setting-up-triggers/creating-triggers#configuring-the-webhook-endpoint) on the Creating triggers page.
 
 Composio verifies signatures on both hops:
 
@@ -89,8 +72,9 @@ Triggers are scoped to a connected account. If you haven't set up authentication
 ## Next steps
 
 <Cards>
-  <Card icon={<Zap />} title="Creating triggers" href="/docs/setting-up-triggers/creating-triggers" description="Inspect a trigger type, configure the webhook endpoint when required, then create trigger instances" />
-  <Card icon={<Plug />} title="Subscribing to events" href="/docs/setting-up-triggers/subscribing-to-events" description="Receive trigger events via webhooks or SDK subscriptions" />
+  <Card icon={<Plug />} title="Subscribing to events" href="/docs/setting-up-triggers/subscribing-to-events" description="One-time per project: tell Composio which URL to deliver events to" />
+  <Card icon={<Zap />} title="Creating triggers" href="/docs/setting-up-triggers/creating-triggers" description="Inspect a trigger type and create trigger instances via the SDK or dashboard" />
+  <Card icon={<RouteIcon />} title="Configuring the webhook endpoint" href="/docs/setting-up-triggers/creating-triggers#configuring-the-webhook-endpoint" description="Situational: required only when you bring your own OAuth app and the trigger needs it" />
   <Card icon={<ShieldCheck />} title="Verifying webhooks" href="/docs/webhook-verification" description="Verify webhook signatures and understand payload versions" />
   <Card icon={<Wrench />} title="Managing triggers" href="/docs/setting-up-triggers/managing-triggers" description="Discover, list, enable, disable, and delete triggers" />
   <Card icon={<BookOpen />} title="Example: Gmail labeler" href="/cookbooks/gmail-labeler" description="Build an automated email labeling agent using triggers" />
