@@ -33,9 +33,6 @@ user_id = "user-id-123435"
 trigger_type = composio.triggers.get_type("GITHUB_COMMIT_EVENT")
 print(trigger_type.config)
 # {"properties": {"owner": {...}, "repo": {...}}, "required": ["owner", "repo"]}
-print(trigger_type.requires_webhook_endpoint)
-# False → create the trigger normally
-# True  → see "Configuring the webhook endpoint" below first
 
 # Create trigger with the required config
 trigger = composio.triggers.create(
@@ -57,9 +54,6 @@ const userId = 'user-id-123435';
 const triggerType = await composio.triggers.getType("GITHUB_COMMIT_EVENT");
 console.log(triggerType.config);
 // {"properties": {"owner": {...}, "repo": {...}}, "required": ["owner", "repo"]}
-console.log(triggerType.requiresWebhookEndpoint);
-// false → create the trigger normally
-// true  → see "Configuring the webhook endpoint" below first
 
 // Create trigger with the required config
 const trigger = await composio.triggers.create(
