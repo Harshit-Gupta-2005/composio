@@ -14,6 +14,7 @@ import {
 } from 'effect';
 import { Composio as _RawComposioClient, APIPromise } from '@composio/client';
 import type { AuthConfigCreateParams } from '@composio/client/resources/auth-configs';
+import type { ConnectedAccountListParams } from '@composio/client/resources/connected-accounts';
 import { Toolkit, Toolkits, ToolkitDetailed, type ToolkitSearchResult } from 'src/models/toolkits';
 import { AuthConfigItem, AuthConfigItems } from 'src/models/auth-configs';
 import { ConnectedAccountItem, ConnectedAccountItems } from 'src/models/connected-accounts';
@@ -1775,9 +1776,9 @@ function buildConnectedAccountsNamespace(
             client.connectedAccounts.list({
               toolkit_slugs: params.toolkit_slugs,
               user_ids: params.user_ids,
-              statuses: params.statuses as
-                | Array<'INITIALIZING' | 'INITIATED' | 'ACTIVE' | 'FAILED' | 'EXPIRED' | 'INACTIVE'>
-                | undefined,
+              // Bypass the stale Stainless union (still missing 'REVOKED')
+              // until @composio/client is regenerated.
+              statuses: params.statuses as ConnectedAccountListParams['statuses'],
               limit: params.limit,
             }),
           ConnectedAccountListResponse

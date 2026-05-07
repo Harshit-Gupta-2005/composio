@@ -1,11 +1,9 @@
 import { Command, Options } from '@effect/cli';
-import { Effect, Option, Schema } from 'effect';
+import { Effect, Option } from 'effect';
+import { decodeConnectedAccountListWithFallback } from 'src/effects/decode-connected-account-list';
 import { requireAuth } from 'src/effects/require-auth';
 import type { ConnectedAccountItem } from 'src/models/connected-accounts';
-import {
-  ComposioClientSingleton,
-  ConnectedAccountListResponse,
-} from 'src/services/composio-clients';
+import { ComposioClientSingleton } from 'src/services/composio-clients';
 import {
   formatResolveCommandProjectError,
   resolveCommandProject,
@@ -73,7 +71,7 @@ export const connectionsCmd$List = Command.make('list', { toolkit }, ({ toolkit 
         limit: 1000,
       })
     );
-    const result = yield* Schema.decodeUnknown(ConnectedAccountListResponse)(rawResult);
+    const result = yield* decodeConnectedAccountListWithFallback(rawResult);
 
     yield* ui.output(formatConnectionsJson(result.items), { force: true });
   })

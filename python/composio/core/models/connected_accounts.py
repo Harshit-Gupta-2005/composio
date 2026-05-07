@@ -28,6 +28,12 @@ logger = logging.getLogger(__name__)
 # 2026-05-08 / 2026-07-03 retirement when the auth config is Composio-managed.
 _LEGACY_RETIRING_OAUTH_SCHEMES = frozenset({"OAUTH1", "OAUTH2", "DCR_OAUTH"})
 
+# Mirrors TS `ConnectionRequest.ts:terminalErrorStates`. INACTIVE is excluded
+# on purpose — it can recover to ACTIVE.
+_TERMINAL_CONNECTION_STATES: t.FrozenSet[str] = frozenset(
+    {"FAILED", "EXPIRED", "REVOKED"}
+)
+
 # One-time-per-process guard so long-running services don't spam the deprecation
 # warning on every initiate() call.
 _legacy_initiate_warning_emitted = False
@@ -77,10 +83,16 @@ class ConnectionRequest(Resource):
         while deadline > time.time():
             connection = self._client.connected_accounts.retrieve(nanoid=self.id)
             self.status = connection.status
-            if self.status != "ACTIVE":
-                time.sleep(1)
-                continue
-            return connection
+            if self.status == "ACTIVE":
+                return connection
+            if self.status in _TERMINAL_CONNECTION_STATES:
+                raise exceptions.SDKError(
+                    message=(
+                        f"Connection {self.id} entered terminal state "
+                        f"{self.status!r} before becoming active"
+                    ),
+                )
+            time.sleep(1)
 
         raise exceptions.ComposioSDKTimeoutError(
             message=f"Timeout while waiting for connection {self.id} to be active",

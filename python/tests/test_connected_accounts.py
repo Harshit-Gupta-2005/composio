@@ -175,6 +175,72 @@ class TestConnectionRequest:
 
         assert "Timeout while waiting for connection conn-timeout" in str(excinfo.value)
 
+    @pytest.mark.parametrize("terminal_status", ["FAILED", "EXPIRED", "REVOKED"])
+    def test_wait_for_connection_fails_fast_on_terminal_status(
+        self, monkeypatch, terminal_status
+    ):
+        mock_client = Mock()
+        terminal = Mock()
+        terminal.status = terminal_status
+        mock_client.connected_accounts.retrieve.return_value = terminal
+
+        req = ConnectionRequest(
+            id="conn-terminal",
+            status="PENDING",
+            redirect_url=None,
+            client=mock_client,
+        )
+
+        # Patch `time.time` defensively — matches sibling tests.
+        current_time = {"value": 0.0}
+
+        def fake_time():
+            value = current_time["value"]
+            current_time["value"] += 0.1
+            return value
+
+        monkeypatch.setattr(time, "time", fake_time)
+        monkeypatch.setattr(time, "sleep", lambda *_args, **_kwargs: None)
+
+        with pytest.raises(exceptions.SDKError) as excinfo:
+            req.wait_for_connection(timeout=10.0)
+
+        assert "conn-terminal" in str(excinfo.value)
+        assert terminal_status in str(excinfo.value)
+        # One retrieve call only — no polling once we hit a terminal state.
+        assert mock_client.connected_accounts.retrieve.call_count == 1
+
+    def test_wait_for_connection_does_not_treat_inactive_as_terminal(self, monkeypatch):
+        mock_client = Mock()
+        inactive = Mock()
+        inactive.status = "INACTIVE"
+        active = Mock()
+        active.status = "ACTIVE"
+        mock_client.connected_accounts.retrieve.side_effect = [inactive, active]
+
+        req = ConnectionRequest(
+            id="conn-inactive-recover",
+            status="PENDING",
+            redirect_url=None,
+            client=mock_client,
+        )
+
+        current_time = {"value": 0.0}
+
+        def fake_time():
+            value = current_time["value"]
+            current_time["value"] += 0.1
+            return value
+
+        monkeypatch.setattr(time, "time", fake_time)
+        monkeypatch.setattr(time, "sleep", lambda *_args, **_kwargs: None)
+
+        result = req.wait_for_connection(timeout=1.0)
+
+        assert result is active
+        assert req.status == "ACTIVE"
+        assert mock_client.connected_accounts.retrieve.call_count == 2
+
     def test_from_id_uses_client_retrieve(self):
         mock_client = Mock()
         retrieved = Mock()
