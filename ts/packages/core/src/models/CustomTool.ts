@@ -41,6 +41,7 @@ import type {
   SessionRetrieveResponse,
 } from '@composio/client/resources/tool-router/session/session.mjs';
 import { ValidationError } from '../errors';
+import { PRELOAD_TOOLS_ALL } from '../lib/toolRouterConstants';
 
 /** Prefix applied by the backend to local tool slugs for disambiguation. */
 export const LOCAL_TOOL_PREFIX = 'LOCAL_';
@@ -519,16 +520,18 @@ export function findCustomToolMapEntryByFinalSlug(
  * @internal
  */
 export function assertNoCustomToolSlugsInPreload(
-  preloadTools: readonly string[] | 'all' | undefined,
+  preloadTools: readonly string[] | typeof PRELOAD_TOOLS_ALL | undefined,
   customToolsMap: CustomToolsMap | undefined
 ): void {
-  if (!preloadTools || preloadTools === 'all') {
+  if (!preloadTools || preloadTools === PRELOAD_TOOLS_ALL) {
     return;
   }
 
   const customPreloadSlugs = preloadTools.filter(slug => {
     const normalized = slug.toUpperCase();
     return (
+      // Top-level preload.tools is only for Composio-managed tool slugs.
+      // Custom tools use `preload: true` on their SDK definitions instead.
       normalized.startsWith(LOCAL_TOOL_PREFIX) ||
       customToolsMap?.byOriginalSlug.has(normalized) ||
       customToolsMap?.byFinalSlug.has(normalized)

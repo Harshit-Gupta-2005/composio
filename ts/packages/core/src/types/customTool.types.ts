@@ -139,7 +139,7 @@ export const CreateCustomToolBaseSchema = z.object({
     .boolean()
     .optional()
     .describe(
-      'When true, expose this custom tool directly from session.tools(). This is SDK-local for custom tools and is sent to v3.1 with the inline custom definition.'
+      'When true, include this custom tool in session.tools() so it can be called without searching first.'
     ),
 });
 
@@ -170,9 +170,8 @@ export interface CustomTool {
    */
   readonly extendsToolkit?: string;
   /**
-   * Whether this custom tool should be exposed directly from session.tools().
-   * This is SDK-local for custom tools and is sent to v3.1 with the inline
-   * custom definition.
+   * Include this custom tool in session.tools() so it can be called without
+   * searching first.
    */
   readonly preload?: boolean;
   readonly inputSchema: Record<string, unknown>;
@@ -187,9 +186,7 @@ export interface CustomTool {
 /** Serialized tool definition sent to backend for search indexing. Uses official client type. */
 export type CustomToolDefinition = SessionCreateParams.Experimental.CustomTool;
 
-export type CustomToolWireDefinition = CustomToolDefinition & {
-  preload?: boolean;
-};
+export type CustomToolWireDefinition = CustomToolDefinition;
 
 // ────────────────────────────────────────────────────────────────
 // Custom toolkit types
@@ -206,7 +203,7 @@ export const CreateCustomToolkitBaseSchema = z.object({
     .boolean()
     .optional()
     .describe(
-      'When true, expose tools in this custom toolkit directly from session.tools(). Tool-level preload values override this default.'
+      'When true, include tools from this custom toolkit in session.tools(). Tool-level preload values override this default.'
     ),
 });
 
@@ -225,7 +222,7 @@ export interface CustomToolkit {
   readonly name: string;
   readonly description: string;
   /**
-   * Default direct-exposure setting for tools in this custom toolkit.
+   * Default session.tools() exposure for tools in this custom toolkit.
    * Tool-level preload values override this default.
    */
   readonly preload?: boolean;
@@ -235,10 +232,7 @@ export interface CustomToolkit {
 /** Serialized toolkit definition sent to backend. Uses official client type. */
 export type CustomToolkitDefinition = SessionCreateParams.Experimental.CustomToolkit;
 
-export type CustomToolkitWireDefinition = Omit<CustomToolkitDefinition, 'tools'> & {
-  preload?: boolean;
-  tools: Array<CustomToolkitDefinition['tools'][number] & { preload?: boolean }>;
-};
+export type CustomToolkitWireDefinition = CustomToolkitDefinition;
 
 export interface InlineCustomToolsWirePayload {
   custom_tools?: CustomToolWireDefinition[];
@@ -266,7 +260,7 @@ export type CustomToolsMap = {
   byOriginalSlug: Map<string, CustomToolsMapEntry>;
   /** The original custom toolkits passed at session creation — used for session.customToolkits() */
   toolkits?: CustomToolkit[];
-  /** The original standalone custom tools passed at session creation — kept for inline re-injection on subsequent v3.1 requests. */
+  /** The original standalone custom tools passed at session creation — kept for inline re-injection on later requests. */
   tools?: CustomTool[];
 };
 

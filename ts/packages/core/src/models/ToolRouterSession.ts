@@ -55,7 +55,7 @@ import { transformToolRouterUpdateParams } from '../lib/toolRouterParams';
 
 const COMPOSIO_MULTI_EXECUTE_TOOL = 'COMPOSIO_MULTI_EXECUTE_TOOL';
 export const DIRECT_CUSTOM_TOOL_DESCRIPTION_PREFIX =
-  '[Direct tool - call directly, no search or connection check needed beforehand.]';
+  '[Direct tool - call directly, no search needed beforehand.]';
 
 export class ToolRouterSession<
   TToolCollection,
@@ -147,7 +147,7 @@ export class ToolRouterSession<
           toolSlug,
           input,
           modifiers,
-          toolBySlug.get(toolSlug.toUpperCase()),
+          toolBySlug.get(toolSlug.toUpperCase())
         );
       };
 

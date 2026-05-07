@@ -6,9 +6,11 @@ after creation — e.g. adding toolkits, changing workbench settings, or
 updating preload config without creating a new session.
 """
 
+import os
+
 from composio import Composio
 
-composio = Composio()
+composio = Composio(base_url=os.environ.get("COMPOSIO_BASE_URL"))
 
 # Create a session with gmail only
 session = composio.create(
@@ -24,7 +26,7 @@ print(f"Preload: {session.preload}")
 session.update(
     toolkits={"enable": ["gmail", "github"]},
     workbench={"enable": True, "sandbox_size": "medium"},
-    preload={"tools": ["GITHUB_CREATE_ISSUE"]},
+    preload={"tools": ["GITHUB_CREATE_AN_ISSUE"]},
 )
 
 print("\nAfter update:")

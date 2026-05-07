@@ -11,6 +11,12 @@ import type {
   RegisteredCustomTool,
   RegisteredCustomToolkit,
 } from './customTool.types';
+import { PRELOAD_TOOLS_ALL } from '../lib/toolRouterConstants';
+
+export const SessionPreset = {
+  DIRECT_TOOLS: 'direct_tools',
+} as const;
+export type SessionPreset = (typeof SessionPreset)[keyof typeof SessionPreset];
 
 export const MCPServerTypeSchema = z.enum(['http', 'sse']);
 export type MCPServerType = z.infer<typeof MCPServerTypeSchema>;
@@ -173,7 +179,7 @@ export type ToolRouterConfigTools = z.infer<typeof ToolRouterConfigToolsSchema>;
 const ToolRouterCreateSessionConfigBaseSchema = z
   .object({
     sessionPreset: z
-      .literal('direct_tools')
+      .literal(SessionPreset.DIRECT_TOOLS)
       .optional()
       .describe(
         'Shortcut to expose every tool allowed by the session filters directly in session.tools() and the MCP tool list. This disables meta tools by default (search, multi-execute, manage-connections, and workbench). Use when all tools are known upfront and helper/meta tools are not needed. Without this preset, ToolRouter uses its default configuration with meta tools enabled.'
@@ -266,7 +272,7 @@ const ToolRouterCreateSessionConfigBaseSchema = z
     preload: z
       .object({
         tools: z
-          .union([z.array(z.string()), z.literal('all')])
+          .union([z.array(z.string()), z.literal(PRELOAD_TOOLS_ALL)])
           .optional()
           .describe(
             'Tool slugs to preload into session.tools() and the MCP tool list, or "all" to preload every app tool allowed by the session filters. "all" requires a positive filter such as toolkits, tools, or tags; the backend validates and caps the final tool set.'
@@ -314,7 +320,7 @@ const applyDirectToolsPresetDefaults = (value: unknown): unknown => {
   }
 
   const config = value as Record<string, unknown>;
-  if (config.sessionPreset !== 'direct_tools') {
+  if (config.sessionPreset !== SessionPreset.DIRECT_TOOLS) {
     return value;
   }
 
@@ -322,7 +328,7 @@ const applyDirectToolsPresetDefaults = (value: unknown): unknown => {
     ...config,
     manageConnections: config.manageConnections === undefined ? false : config.manageConnections,
     workbench: config.workbench === undefined ? { enable: false } : config.workbench,
-    preload: config.preload === undefined ? { tools: 'all' } : config.preload,
+    preload: config.preload === undefined ? { tools: PRELOAD_TOOLS_ALL } : config.preload,
   };
 };
 
@@ -332,7 +338,7 @@ export const ToolRouterCreateSessionConfigSchema = z
 /**
  * The config for the tool router session.
  *
- * @param {'direct_tools'} [sessionPreset] - Shortcut that exposes every tool allowed by the session filters directly in session.tools() and the MCP tool list. Disables search, multi-execute, manage-connections, and workbench by default; explicit overrides for supported fields still win. Without this preset, ToolRouter uses the default configuration with meta tools enabled.
+ * @param {SessionPreset} [sessionPreset] - Shortcut that exposes every tool allowed by the session filters directly in session.tools() and the MCP tool list. Disables search, multi-execute, manage-connections, and workbench by default; explicit overrides for supported fields still win. Without this preset, ToolRouter uses the default configuration with meta tools enabled.
  * @param {ToolRouterToolkitsParamSchema | ToolRouterToolkitsDisabledConfigSchema | ToolRouterToolkitsEnabledConfigSchema} toolkits - The toolkits to use in the tool router session
  * @param {Record<string, ToolRouterToolsParam | ToolRouterConfigTools>} tools - The tools to configure per toolkit (key is toolkit slug)
  * @param {Array<'readOnlyHint' | 'destructiveHint' | 'idempotentHint' | 'openWorldHint'>} tags - Global tags to filter tools by behavior

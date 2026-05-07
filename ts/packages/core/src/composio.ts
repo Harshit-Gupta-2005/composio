@@ -203,6 +203,8 @@ export class Composio<
   toolRouter: ToolRouter<unknown, unknown, TProvider>;
   /**
    * Creates a new tool router session for a user.
+   * Use `sessionPreset: SessionPreset.DIRECT_TOOLS` when all needed tools
+   * should be exposed directly; see `ToolRouterCreateSessionConfig`.
    *
    * @param userId {string} The user id to create the session for
    * @param config {ToolRouterConfig} The config for the tool router session

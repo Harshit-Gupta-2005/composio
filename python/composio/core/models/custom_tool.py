@@ -59,8 +59,12 @@ from .custom_tool_types import (
     CustomToolsMapEntry,
     CustomToolWireDefinition,
 )
+from .tool_router_constants import PRELOAD_TOOLS_ALL
 
 if t.TYPE_CHECKING:
+    from composio_client.types.tool_router.session_attach_response import (
+        Experimental as SessionAttachResponseExperimental,
+    )
     from composio_client.types.tool_router.session_create_response import (
         Experimental as SessionCreateResponseExperimental,
     )
@@ -728,6 +732,7 @@ def build_custom_tools_map_from_response(
     toolkits: t.Optional[t.List[ExperimentalToolkit]],
     experimental: t.Optional[
         t.Union[
+            "SessionAttachResponseExperimental",
             "SessionCreateResponseExperimental",
             "SessionRetrieveResponseExperimental",
         ]
@@ -804,7 +809,7 @@ def assert_no_custom_tool_slugs_in_preload(
     custom_tools_map: t.Optional[CustomToolsMap],
 ) -> None:
     """Reject legacy top-level preload of custom tool slugs."""
-    if preload_tools is None or preload_tools == "all":
+    if preload_tools is None or preload_tools == PRELOAD_TOOLS_ALL:
         return
     if isinstance(preload_tools, str):
         raise ValidationError(
@@ -817,6 +822,8 @@ def assert_no_custom_tool_slugs_in_preload(
     for slug in preload_tools:
         normalized = slug.upper()
         if normalized.startswith(LOCAL_TOOL_PREFIX) or (
+            # Top-level preload.tools is only for Composio-managed tool slugs.
+            # Custom tools use preload=True on their SDK definitions instead.
             custom_tools_map is not None
             and (
                 normalized in custom_tools_map.by_original_slug

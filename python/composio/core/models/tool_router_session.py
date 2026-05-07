@@ -63,7 +63,7 @@ if t.TYPE_CHECKING:
 
 COMPOSIO_MULTI_EXECUTE_TOOL = "COMPOSIO_MULTI_EXECUTE_TOOL"
 DIRECT_CUSTOM_TOOL_DESCRIPTION_PREFIX = (
-    "[Direct tool - call directly, no search or connection check needed beforehand.]"
+    "[Direct tool - call directly, no search needed beforehand.]"
 )
 MAX_PARALLEL_WORKERS = 5
 

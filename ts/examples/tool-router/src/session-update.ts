@@ -29,7 +29,7 @@ console.log(`Preload: ${JSON.stringify(session.preload)}`);
 await session.update({
   toolkits: { enable: ["gmail", "github"] },
   workbench: { enable: true, sandboxSize: "medium" },
-  preload: { tools: ["GITHUB_CREATE_ISSUE"] },
+  preload: { tools: ["GITHUB_CREATE_AN_ISSUE"] },
 });
 
 console.log(`\nAfter update:`);
