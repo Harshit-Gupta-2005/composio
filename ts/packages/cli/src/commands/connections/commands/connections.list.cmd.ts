@@ -73,7 +73,22 @@ export const connectionsCmd$List = Command.make('list', { toolkit }, ({ toolkit 
         limit: 1000,
       })
     );
-    const result = yield* Schema.decodeUnknown(ConnectedAccountListResponse)(rawResult);
+    // Same forward-compat guard as `connected-accounts.list.cmd.ts`: the
+    // closed `Schema.Literal(...)` for `status` would brick this command
+    // for the entire user base when Apollo adds a new enum value.
+    const result = yield* Schema.decodeUnknown(ConnectedAccountListResponse)(rawResult).pipe(
+      Effect.catchTag('ParseError', error =>
+        Effect.gen(function* () {
+          yield* ui.log.warn(
+            `Server returned a connection field this CLI does not recognize ` +
+              `(likely a newly-added status). Run "composio upgrade" to pick up ` +
+              `the latest schema. Continuing with raw response.\n\n` +
+              `Decode error: ${error.message}`
+          );
+          return rawResult as ConnectedAccountListResponse;
+        })
+      )
+    );
 
     yield* ui.output(formatConnectionsJson(result.items), { force: true });
   })
