@@ -17,6 +17,7 @@ import {
   ToolRouterSessionPreloadConfig,
   ToolRouterSessionWarning,
   ToolRouterUpdateSessionConfig,
+  ToolRouterUpdateSessionConfigSchema,
 } from '../types/toolRouter.types';
 import {
   transformSearchResponse,
@@ -479,7 +480,8 @@ export class ToolRouterSession<
    * Mutates this session's `configVersion`, `preload`, and `warnings` in-place.
    */
   async update(config: ToolRouterUpdateSessionConfig): Promise<void> {
-    const params = transformToolRouterUpdateParams(config);
+    const parsed = ToolRouterUpdateSessionConfigSchema.parse(config);
+    const params = transformToolRouterUpdateParams(parsed);
     const response = await this.client.toolRouter.session.patch(this.sessionId, params);
     this.configVersion = response.config_version;
     this.preload = response.config.preload;
