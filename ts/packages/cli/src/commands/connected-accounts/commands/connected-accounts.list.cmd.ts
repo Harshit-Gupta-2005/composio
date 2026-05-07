@@ -94,7 +94,26 @@ export const connectedAccountsCmd$List = Command.make(
           })
         )
       );
-      const result = yield* Schema.decodeUnknown(ConnectedAccountListResponse)(rawResult);
+      // The Composio server enum for connection statuses evolves on Apollo's
+      // cadence (REVOKED was added in PR #9550; S2S_OAUTH2 revocation is queued
+      // next). A closed `Schema.Literal(...)` in `ConnectedAccountItem` would
+      // reject any future status and brick `composio dev connected-accounts list`
+      // for every user — even those filtering on `--status ACTIVE`. Catch the
+      // ParseError, warn, and degrade to the raw response so the table still
+      // renders.
+      const result = yield* Schema.decodeUnknown(ConnectedAccountListResponse)(rawResult).pipe(
+        Effect.catchTag('ParseError', error =>
+          Effect.gen(function* () {
+            yield* ui.log.warn(
+              `Server returned a connection field this CLI does not recognize ` +
+                `(likely a newly-added status). Run "composio upgrade" to pick up ` +
+                `the latest schema. Continuing with raw response.\n\n` +
+                `Decode error: ${error.message}`
+            );
+            return rawResult as ConnectedAccountListResponse;
+          })
+        )
+      );
 
       if (result.items.length === 0) {
         let hint: string;
