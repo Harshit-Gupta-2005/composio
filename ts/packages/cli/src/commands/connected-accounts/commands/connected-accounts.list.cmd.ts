@@ -1,5 +1,6 @@
 import { Command, Options } from '@effect/cli';
 import { Effect, Option, Schema } from 'effect';
+import type { ConnectedAccountListParams } from '@composio/client/resources/connected-accounts';
 import {
   ComposioClientSingleton,
   ConnectedAccountListResponse,
@@ -78,17 +79,10 @@ export const connectedAccountsCmd$List = Command.make(
           client.connectedAccounts.list({
             toolkit_slugs: toolkitSlugs,
             user_ids: Option.isSome(userId) ? [userId.value] : undefined,
-            // Cast bypasses the stale Stainless `statuses` union (still
-            // missing 'REVOKED') so the CLI flag stays in sync with the
-            // Apollo enum until @composio/client is regenerated.
+            // Bypass the stale Stainless union (still missing 'REVOKED')
+            // until @composio/client is regenerated.
             statuses: Option.isSome(status)
-              ? ([status.value] as Parameters<
-                  typeof client.connectedAccounts.list
-                >[0] extends infer P
-                  ? P extends { statuses?: infer S }
-                    ? S
-                    : never
-                  : never)
+              ? ([status.value] as ConnectedAccountListParams['statuses'])
               : undefined,
             limit: clampLimit(limit),
           })

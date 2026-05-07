@@ -14,6 +14,7 @@ import {
 } from 'effect';
 import { Composio as _RawComposioClient, APIPromise } from '@composio/client';
 import type { AuthConfigCreateParams } from '@composio/client/resources/auth-configs';
+import type { ConnectedAccountListParams } from '@composio/client/resources/connected-accounts';
 import { Toolkit, Toolkits, ToolkitDetailed, type ToolkitSearchResult } from 'src/models/toolkits';
 import { AuthConfigItem, AuthConfigItems } from 'src/models/auth-configs';
 import { ConnectedAccountItem, ConnectedAccountItems } from 'src/models/connected-accounts';
@@ -1775,18 +1776,9 @@ function buildConnectedAccountsNamespace(
             client.connectedAccounts.list({
               toolkit_slugs: params.toolkit_slugs,
               user_ids: params.user_ids,
-              // Cast widens to whatever the Stainless-generated client
-              // currently accepts, plus 'REVOKED'. The cast bypasses the
-              // stale Stainless types so callers passing 'REVOKED' (a valid
-              // Apollo status) are forwarded as-is until @composio/client is
-              // regenerated.
-              statuses: params.statuses as Parameters<
-                typeof client.connectedAccounts.list
-              >[0] extends infer P
-                ? P extends { statuses?: infer S }
-                  ? S
-                  : never
-                : never,
+              // Bypass the stale Stainless union (still missing 'REVOKED')
+              // until @composio/client is regenerated.
+              statuses: params.statuses as ConnectedAccountListParams['statuses'],
               limit: params.limit,
             }),
           ConnectedAccountListResponse
