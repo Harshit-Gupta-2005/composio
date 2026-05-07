@@ -85,6 +85,9 @@ export const connectionsCmd$List = Command.make('list', { toolkit }, ({ toolkit 
               `the latest schema. Continuing with raw response.\n\n` +
               `Decode error: ${error.message}`
           );
+          // Cast lies about the schema brand, but `formatConnectionsJson`
+          // only reads `status`, `alias`, `word_id`, `toolkit.slug` — the
+          // unvalidated raw payload is safe to render as-is.
           return rawResult as ConnectedAccountListResponse;
         })
       )

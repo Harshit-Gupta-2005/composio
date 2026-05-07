@@ -104,6 +104,11 @@ export const connectedAccountsCmd$List = Command.make(
                 `the latest schema. Continuing with raw response.\n\n` +
                 `Decode error: ${error.message}`
             );
+            // Cast lies about the schema brand, but the downstream formatters
+            // (`formatConnectedAccountsTable`, `formatConnectedAccountsJson`)
+            // only read whitelisted fields — credential-bearing `state` /
+            // `data` are never indexed, so the unvalidated raw payload is
+            // safe to render as-is.
             return rawResult as ConnectedAccountListResponse;
           })
         )

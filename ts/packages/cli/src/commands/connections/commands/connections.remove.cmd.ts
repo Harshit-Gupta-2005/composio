@@ -121,6 +121,10 @@ export const connectionsCmd$Remove = Command.make('remove', { account }, ({ acco
               `the latest schema. Continuing with raw response.\n\n` +
               `Decode error: ${error.message}`
           );
+          // Cast lies about the schema brand, but `resolveAccount` and
+          // `formatAccountSummary` only read `id`, `alias`, `word_id`,
+          // `toolkit.slug`, `status` — credential-bearing `state` / `data`
+          // are never indexed, so the unvalidated raw payload is safe.
           return rawResult as ConnectedAccountListResponse;
         })
       )
