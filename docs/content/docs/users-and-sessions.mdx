@@ -107,9 +107,11 @@ A session ties together a user, a set of available toolkits, auth configuration 
 
 You don't need to cache session IDs, manage session lifetimes, or worry about expiration. Sessions persist on the server and don't expire. Just call `create()` with what you need.
 
-### Sessions are immutable
+### Session configuration is fixed at creation
 
-A session's configuration is fixed at creation. You cannot change the toolkits, auth configs, or connected accounts on an existing session.
+A session's toolkits, auth configs, and connected accounts are fixed at creation. You cannot change them on an existing session.
+
+The one exception is [custom tools](/docs/toolkits/custom-tools-and-toolkits): you can attach custom tools to an existing session via `composio.use(sessionId, { customTools: [...] })`.
 
 This means the boundary for a new session isn't a new chat or a new request. It's when the contract changes. If a user starts with "search my personal Gmail" and then says "actually use my work email," that's a different session because the auth changed.
 
