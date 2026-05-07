@@ -47,8 +47,15 @@ import type {
 } from '@composio/client/resources/tool-router/session/session.mjs';
 import { SessionProxyExecuteParamsSchema } from '../types/toolRouter.types';
 import { SessionContextImpl } from './SessionContext';
-import { findCustomTool, executeCustomTool } from './customToolExecution';
-import { findCustomToolMapEntryByFinalSlug } from './CustomTool';
+import {
+  assertUnambiguousCustomToolSlug,
+  findCustomTool,
+  executeCustomTool,
+} from './customToolExecution';
+import {
+  findCustomToolMapEntryByFinalSlug,
+  findCustomToolMapEntryByToolkitAndOriginalSlug,
+} from './CustomTool';
 import { transformProxyParams } from './proxyParamsTransform';
 import { inlineCustomToolsExperimental } from './inlineCustomToolsPayload';
 import { transformToolRouterUpdateParams } from '../lib/toolRouterParams';
@@ -142,6 +149,7 @@ export class ToolRouterSession<
         if (customTool) {
           return executeCustomTool(customTool, input, this.sessionContext!);
         }
+        assertUnambiguousCustomToolSlug(this.customToolsMap, toolSlug);
         return this.executeBackendSessionTool(
           ToolsModel,
           toolSlug,
@@ -275,8 +283,11 @@ export class ToolRouterSession<
       name: tk.name,
       description: tk.description,
       tools: tk.tools.map(tool => {
-        // Look up the entry to get the final slug
-        const entry = this.customToolsMap!.byOriginalSlug.get(tool.slug.toUpperCase());
+        // Look up by toolkit + original slug so toolkits can safely reuse common names
+        // like VERSION, CLICK, or SEARCH without losing the backend-assigned final slug.
+        const entry =
+          findCustomToolMapEntryByToolkitAndOriginalSlug(this.customToolsMap, tk.slug, tool.slug) ??
+          this.customToolsMap!.byOriginalSlug.get(tool.slug.toUpperCase());
         return {
           slug: entry?.finalSlug ?? tool.slug,
           name: tool.name,
@@ -415,6 +426,7 @@ export class ToolRouterSession<
         logId: '',
       };
     }
+    assertUnambiguousCustomToolSlug(this.customToolsMap, toolSlug);
 
     // Remote execution
     const executeParams: SessionExecuteParams = {
@@ -558,6 +570,7 @@ export class ToolRouterSession<
       if (entry) {
         localItems.push({ index: i, entry });
       } else {
+        assertUnambiguousCustomToolSlug(this.customToolsMap, parsed[i].tool_slug);
         remoteIndices.push(i);
       }
     }
