@@ -16,6 +16,7 @@ import {
   ToolRouterSessionMetadata,
   ToolRouterSessionPreloadConfig,
   ToolRouterSessionWarning,
+  ToolRouterUpdateSessionConfig,
 } from '../types/toolRouter.types';
 import {
   transformSearchResponse,
@@ -49,6 +50,7 @@ import { findCustomTool, executeCustomTool } from './customToolExecution';
 import { findCustomToolMapEntryByFinalSlug } from './CustomTool';
 import { transformProxyParams } from './proxyParamsTransform';
 import { inlineCustomToolsExperimental } from './inlineCustomToolsPayload';
+import { transformToolRouterUpdateParams } from '../lib/toolRouterParams';
 
 const COMPOSIO_MULTI_EXECUTE_TOOL = 'COMPOSIO_MULTI_EXECUTE_TOOL';
 export const DIRECT_CUSTOM_TOOL_DESCRIPTION_PREFIX =
@@ -62,9 +64,9 @@ export class ToolRouterSession<
   public readonly sessionId: string;
   public readonly mcp: ToolRouterMCPServerConfig;
   public readonly experimental: SessionExperimental;
-  public readonly preload: ToolRouterSessionPreloadConfig;
-  public readonly configVersion?: number;
-  public readonly warnings: ToolRouterSessionWarning[];
+  public preload: ToolRouterSessionPreloadConfig;
+  public configVersion?: number;
+  public warnings: ToolRouterSessionWarning[];
   private readonly preloadedCustomToolSlugs: string[];
   private readonly inlineCustomToolsPayload: ToolRouterSessionMetadata['inlineCustomToolsPayload'];
 
@@ -469,6 +471,19 @@ export class ToolRouterSession<
           }
         : {}),
     };
+  }
+
+  /**
+   * Partially update the session configuration.
+   * Only the fields provided will be changed; omitted fields are preserved.
+   * Mutates this session's `configVersion`, `preload`, and `warnings` in-place.
+   */
+  async update(config: ToolRouterUpdateSessionConfig): Promise<void> {
+    const params = transformToolRouterUpdateParams(config);
+    const response = await this.client.toolRouter.session.patch(this.sessionId, params);
+    this.configVersion = response.config_version;
+    this.preload = response.config.preload;
+    this.warnings = response.warnings ?? [];
   }
 
   // ── Private helpers ──────────────────────────────────────────

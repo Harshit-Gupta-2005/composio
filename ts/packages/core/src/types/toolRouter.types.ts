@@ -612,6 +612,27 @@ export type ToolRouterSessionProxyExecuteFn = (
   params: SessionProxyExecuteParams
 ) => Promise<ToolRouterSessionProxyExecuteResponse>;
 
+/**
+ * Config accepted by `session.update()`. Same camelCase shape as
+ * `ToolRouterCreateSessionConfig` but every field is optional and
+ * `manageConnections`, `workbench`, and `multiAccount` accept `null`
+ * to clear the stored value. `sessionPreset` and custom tools/toolkits
+ * are not supported on update.
+ */
+export interface ToolRouterUpdateSessionConfig {
+  toolkits?: ToolRouterCreateSessionConfig['toolkits'];
+  tools?: ToolRouterCreateSessionConfig['tools'];
+  tags?: ToolRouterCreateSessionConfig['tags'];
+  authConfigs?: ToolRouterCreateSessionConfig['authConfigs'];
+  connectedAccounts?: ToolRouterCreateSessionConfig['connectedAccounts'];
+  manageConnections?: ToolRouterCreateSessionConfig['manageConnections'] | null;
+  workbench?: ToolRouterCreateSessionConfig['workbench'] | null;
+  multiAccount?: ToolRouterCreateSessionConfig['multiAccount'] | null;
+  preload?: ToolRouterCreateSessionConfig['preload'];
+}
+
+export type ToolRouterSessionUpdateFn = (config: ToolRouterUpdateSessionConfig) => Promise<void>;
+
 /** Session type returned by ToolRouter.create() and ToolRouter.use() */
 export interface Session<
   TToolCollection,
@@ -633,6 +654,8 @@ export interface Session<
   search: ToolRouterSessionSearchFn;
   /** Execute a tool within the session */
   execute: ToolRouterSessionExecuteFn;
+  /** Update the session configuration. Mutates this session in-place. */
+  update: ToolRouterSessionUpdateFn;
   /** Proxy an API call through Composio's auth layer using the session's connected account */
   proxyExecute: ToolRouterSessionProxyExecuteFn;
   /** List custom tools registered in this session, with their final slugs and schemas */

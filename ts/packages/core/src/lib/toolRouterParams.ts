@@ -1,4 +1,7 @@
-import { SessionCreateParams } from '@composio/client/resources/tool-router/session/session.mjs';
+import {
+  SessionCreateParams,
+  SessionPatchParams,
+} from '@composio/client/resources/tool-router/session/session.mjs';
 import {
   ToolRouterConfigTags,
   ToolRouterConfigTools,
@@ -9,6 +12,7 @@ import {
   ToolRouterToolkitsParamSchema,
   ToolRouterToolkitsDisabledConfigSchema,
   ToolRouterToolkitsEnabledConfigSchema,
+  ToolRouterUpdateSessionConfig,
 } from '../types/toolRouter.types';
 import { ValidationError } from '../errors';
 import { z } from 'zod';
@@ -164,4 +168,52 @@ export const transformToolRouterToolkitsParams = (
 
   // Otherwise return as-is (already in enable/disable format)
   return params as SessionCreateParams.Enable | SessionCreateParams.Disable;
+};
+
+export const transformToolRouterUpdateParams = (
+  config: ToolRouterUpdateSessionConfig
+): SessionPatchParams => {
+  const params: SessionPatchParams = {};
+
+  if (config.toolkits !== undefined) {
+    params.toolkits = transformToolRouterToolkitsParams(config.toolkits);
+  }
+  if (config.tools !== undefined) {
+    params.tools = transformToolRouterToolsParams(config.tools);
+  }
+  if (config.tags !== undefined) {
+    params.tags = transformToolRouterTagsParams(config.tags);
+  }
+  if (config.authConfigs !== undefined) {
+    params.auth_configs = config.authConfigs;
+  }
+  if (config.connectedAccounts !== undefined) {
+    params.connected_accounts = config.connectedAccounts;
+  }
+  if (config.manageConnections !== undefined) {
+    if (config.manageConnections === null) {
+      params.manage_connections = null;
+    } else {
+      params.manage_connections = transformToolRouterManageConnectionsParams(config.manageConnections);
+    }
+  }
+  if (config.workbench !== undefined) {
+    if (config.workbench === null) {
+      params.workbench = null;
+    } else {
+      params.workbench = transformToolRouterWorkbenchParams(config.workbench);
+    }
+  }
+  if (config.multiAccount !== undefined) {
+    if (config.multiAccount === null) {
+      params.multi_account = null;
+    } else {
+      params.multi_account = transformToolRouterMultiAccountParams(config.multiAccount);
+    }
+  }
+  if (config.preload !== undefined) {
+    params.preload = config.preload;
+  }
+
+  return params;
 };
