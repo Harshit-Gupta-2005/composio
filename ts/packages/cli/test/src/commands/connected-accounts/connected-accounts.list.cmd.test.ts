@@ -231,4 +231,40 @@ describe('CLI: composio dev connected-accounts list', () => {
       );
     }
   );
+
+  // Forward-compat: simulate the server returning a status the CLI does not
+  // know about (e.g. a freshly-added Apollo enum value). The decode now uses
+  // `catchTag('ParseError')` to warn and degrade rather than crashing the
+  // entire command — even users filtering on `--status ACTIVE` would
+  // otherwise be blocked.
+  const unknownStatusAccounts = [
+    {
+      ...testConnectedAccounts[0],
+      id: 'con_future_status',
+      // Cast to bypass the closed `ConnectedAccountItem['status']` literal —
+      // the whole point of this test is what happens when the server hands
+      // us a value the schema rejects.
+      status: 'FUTURE_NOT_YET_KNOWN' as ConnectedAccountItem['status'],
+    },
+  ];
+
+  layer(
+    TestLive({
+      baseConfigProvider: testDevConfigProvider,
+      connectedAccountsData: { items: unknownStatusAccounts },
+    })
+  )('[Given] server returns unknown status [Then] warns and degrades instead of crashing', it => {
+    it.scoped('does not crash on unknown status', () =>
+      Effect.gen(function* () {
+        const userContext = yield* ComposioUserContext;
+        yield* userContext.login('test_api_key', 'org_test');
+        yield* cli(['dev', 'connected-accounts', 'list']);
+        const lines = yield* MockConsole.getLines({ stripAnsi: true });
+        const output = lines.join('\n');
+
+        expect(output).toContain('composio upgrade');
+        expect(output).toContain('con_future_status');
+      })
+    );
+  });
 });
