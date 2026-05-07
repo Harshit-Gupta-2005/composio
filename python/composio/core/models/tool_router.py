@@ -1047,9 +1047,9 @@ class ToolRouter(Resource, t.Generic[TTool, TToolCollection]):
                     "custom_tools"
                 ]
             if "custom_toolkits" in experimental_payload:
-                inline_custom_tools_payload["custom_toolkits"] = (
-                    experimental_payload["custom_toolkits"]
-                )
+                inline_custom_tools_payload["custom_toolkits"] = experimental_payload[
+                    "custom_toolkits"
+                ]
 
             from urllib.parse import quote
 
