@@ -35,7 +35,7 @@ import {
   SessionCreateResponse,
   SessionRetrieveResponse,
 } from '@composio/client/resources/tool-router/session/session.mjs';
-import type { CustomTool, CustomToolkit } from '../types/customTool.types';
+import type { CustomTool, CustomToolkit, InlineCustomToolsWirePayload } from '../types/customTool.types';
 import {
   transformToolRouterTagsParams,
   transformToolRouterToolsParams,
@@ -253,17 +253,26 @@ export class ToolRouter<
     const hasCustoms = !!(customTools?.length || customToolkits?.length);
 
     let session: SessionRetrieveResponse;
+    let inlineCustomToolsPayload: InlineCustomToolsWirePayload | undefined;
+
     if (hasCustoms) {
+      const serializedTools = customTools?.length ? serializeCustomTools(customTools) : undefined;
+      const serializedToolkits = customToolkits?.length
+        ? serializeCustomToolkits(customToolkits)
+        : undefined;
+
       const experimentalPayload: {
         custom_tools?: SessionCreateParams.Experimental.CustomTool[];
         custom_toolkits?: SessionCreateParams.Experimental.CustomToolkit[];
       } = {};
-      if (customTools?.length) {
-        experimentalPayload.custom_tools = serializeCustomTools(customTools);
-      }
-      if (customToolkits?.length) {
-        experimentalPayload.custom_toolkits = serializeCustomToolkits(customToolkits);
-      }
+      if (serializedTools) experimentalPayload.custom_tools = serializedTools;
+      if (serializedToolkits) experimentalPayload.custom_toolkits = serializedToolkits;
+
+      inlineCustomToolsPayload = {
+        ...(serializedTools ? { custom_tools: serializedTools } : {}),
+        ...(serializedToolkits ? { custom_toolkits: serializedToolkits } : {}),
+      };
+
       session = await this.client.post<SessionRetrieveResponse>(
         `/api/v3.1/tool_router/session/${encodeURIComponent(id)}/attach`,
         { body: { experimental: experimentalPayload } }
@@ -283,6 +292,12 @@ export class ToolRouter<
       userId = session.config.user_id;
     }
 
+    const metadata = {
+      ...getSessionMetadata(session),
+      preloadedCustomToolSlugs: getPreloadedCustomToolSlugs(customToolsMap),
+      inlineCustomToolsPayload,
+    };
+
     return new ToolRouterSession<TToolCollection, TTool, TProvider>(
       this.client,
       this.config,
@@ -291,7 +306,7 @@ export class ToolRouter<
       undefined,
       customToolsMap,
       userId,
-      getSessionMetadata(session)
+      metadata
     );
   }
 }
