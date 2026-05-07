@@ -153,6 +153,7 @@ class CustomToolsMap:
     by_final_slug: t.Dict[str, CustomToolsMapEntry] = field(default_factory=dict)
     by_original_slug: t.Dict[str, CustomToolsMapEntry] = field(default_factory=dict)
     toolkits: t.Optional[t.List[t.Any]] = None
+    tools: t.Optional[t.List["CustomTool"]] = None
 
 
 # ────────────────────────────────────────────────────────────────

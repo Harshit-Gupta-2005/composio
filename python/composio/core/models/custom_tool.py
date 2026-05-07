@@ -64,6 +64,9 @@ if t.TYPE_CHECKING:
     from composio_client.types.tool_router.session_create_response import (
         Experimental as SessionCreateResponseExperimental,
     )
+    from composio_client.types.tool_router.session_retrieve_response import (
+        Experimental as SessionRetrieveResponseExperimental,
+    )
 
 
 # ────────────────────────────────────────────────────────────────
@@ -716,13 +719,19 @@ def build_custom_tools_map(
         by_final_slug=by_final_slug,
         by_original_slug=by_original_slug,
         toolkits=list(toolkits) if toolkits else None,
+        tools=list(tools) if tools else None,
     )
 
 
 def build_custom_tools_map_from_response(
     tools: t.List[CustomTool],
     toolkits: t.Optional[t.List[ExperimentalToolkit]],
-    experimental: t.Optional[SessionCreateResponseExperimental],
+    experimental: t.Optional[
+        t.Union[
+            "SessionCreateResponseExperimental",
+            "SessionRetrieveResponseExperimental",
+        ]
+    ],
 ) -> CustomToolsMap:
     """Build a CustomToolsMap using the slug/original_slug mapping from the backend response."""
     by_final_slug: t.Dict[str, CustomToolsMapEntry] = {}
@@ -776,6 +785,7 @@ def build_custom_tools_map_from_response(
         by_final_slug=by_final_slug,
         by_original_slug=by_original_slug,
         toolkits=list(toolkits) if toolkits else None,
+        tools=list(tools) if tools else None,
     )
 
 
