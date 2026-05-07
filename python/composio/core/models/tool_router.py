@@ -1032,17 +1032,15 @@ class ToolRouter(Resource, t.Generic[TTool, TToolCollection]):
         inline_custom_tools_payload: t.Optional[InlineCustomToolsWirePayload] = None
 
         if has_customs:
-            experimental_payload: t.Dict[str, t.Any] = {}
+            inline_custom_tools_payload = InlineCustomToolsWirePayload()
             if custom_tools:
-                experimental_payload["custom_tools"] = serialize_custom_tools(
+                inline_custom_tools_payload["custom_tools"] = serialize_custom_tools(
                     custom_tools
                 )
             if custom_toolkits:
-                experimental_payload["custom_toolkits"] = serialize_custom_toolkits(
-                    custom_toolkits
+                inline_custom_tools_payload["custom_toolkits"] = (
+                    serialize_custom_toolkits(custom_toolkits)
                 )
-
-            inline_custom_tools_payload = experimental_payload
 
             from urllib.parse import quote
 
