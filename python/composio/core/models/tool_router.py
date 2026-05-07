@@ -537,7 +537,7 @@ class ToolRouter(Resource, t.Generic[TTool, TToolCollection]):
             t.Union[bool, ToolRouterManageConnectionsConfig]
         ] = None,
         auth_configs: t.Optional[t.Dict[str, str]] = None,
-        connected_accounts: t.Optional[t.Dict[str, str]] = None,
+        connected_accounts: t.Optional[t.Dict[str, t.List[str]]] = None,
         workbench: t.Optional[ToolRouterWorkbenchConfig] = None,
         multi_account: t.Optional[ToolRouterMultiAccountConfig] = None,
         preload: t.Optional[ToolRouterPreloadConfig] = None,
@@ -596,8 +596,8 @@ class ToolRouter(Resource, t.Generic[TTool, TToolCollection]):
                                     Example: {'enable': True, 'callback_url': 'https://example.com/callback', 'wait_for_connections': True}
         :param auth_configs: Optional mapping of toolkit slug to auth config ID.
                            Example: {'github': 'ac_xxx', 'slack': 'ac_yyy'}
-        :param connected_accounts: Optional mapping of toolkit slug to connected account ID.
-                                  Example: {'github': 'ca_xxx', 'slack': 'ca_yyy'}
+        :param connected_accounts: Optional mapping of toolkit slug to connected account IDs.
+                                  Example: {'github': ['ca_xxx'], 'slack': ['ca_yyy']}
         :param workbench: Optional workbench configuration. Dict with:
                          - 'enable' (bool): Whether to enable the workbench entirely.
                            Defaults to True. When set to False, no code execution tools
