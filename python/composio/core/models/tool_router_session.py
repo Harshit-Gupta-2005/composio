@@ -12,7 +12,9 @@ import typing as t
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
-from composio_client import omit
+from composio_client import Omit, omit
+from composio_client._types import SequenceNotStr
+from composio_client.types.tool_router import session_patch_params
 from composio.client.types import Tool
 from composio_client.types.tool_list_response import (
     ItemDeprecated,
@@ -55,15 +57,7 @@ from composio.core.provider.base import BaseProvider
 
 if t.TYPE_CHECKING:
     from composio.core.models.tool_router import (
-        ToolRouterConfigTags,
-        ToolRouterManageConnectionsConfig,
-        ToolRouterMultiAccountConfig,
-        ToolRouterPreloadConfig,
         ToolRouterSessionExperimental,
-        ToolRouterToolkitsDisableConfig,
-        ToolRouterToolkitsEnableConfig,
-        ToolRouterToolsConfig,
-        ToolRouterWorkbenchConfig,
         ToolkitConnectionsDetails,
     )
 
@@ -810,23 +804,21 @@ class ToolRouterSession(t.Generic[TTool, TToolCollection]):
     def update(
         self,
         *,
-        toolkits: t.Optional[
-            t.Union[
-                t.List[str],
-                "ToolRouterToolkitsEnableConfig",
-                "ToolRouterToolkitsDisableConfig",
-            ]
-        ] = None,
-        tools: t.Optional[t.Dict[str, "ToolRouterToolsConfig"]] = None,
-        tags: t.Optional["ToolRouterConfigTags"] = None,
-        manage_connections: t.Optional[
-            t.Union[bool, "ToolRouterManageConnectionsConfig", None]
-        ] = omit,  # type: ignore[assignment]
-        auth_configs: t.Optional[t.Dict[str, str]] = None,
-        connected_accounts: t.Optional[t.Dict[str, t.Union[str, t.List[str]]]] = None,
-        workbench: t.Optional[t.Union["ToolRouterWorkbenchConfig", None]] = omit,  # type: ignore[assignment]
-        multi_account: t.Optional[t.Union["ToolRouterMultiAccountConfig", None]] = omit,  # type: ignore[assignment]
-        preload: t.Optional["ToolRouterPreloadConfig"] = None,
+        toolkits: t.Union[session_patch_params.Toolkits, "Omit"] = omit,
+        tools: t.Union[t.Dict[str, session_patch_params.Tools], "Omit"] = omit,
+        tags: t.Union[session_patch_params.Tags, "Omit"] = omit,
+        auth_configs: t.Union[t.Dict[str, str], "Omit"] = omit,
+        connected_accounts: t.Union[
+            t.Optional[t.Dict[str, SequenceNotStr[str]]], "Omit"
+        ] = omit,
+        manage_connections: t.Union[
+            t.Optional[session_patch_params.ManageConnections], "Omit"
+        ] = omit,
+        workbench: t.Union[t.Optional[session_patch_params.Workbench], "Omit"] = omit,
+        multi_account: t.Union[
+            t.Optional[session_patch_params.MultiAccount], "Omit"
+        ] = omit,
+        preload: t.Union[session_patch_params.Preload, "Omit"] = omit,
     ) -> None:
         """Partially update the session configuration.
 
@@ -836,109 +828,21 @@ class ToolRouterSession(t.Generic[TTool, TToolCollection]):
         Pass ``None`` for ``manage_connections``, ``workbench``, or
         ``multi_account`` to clear the stored value.
 
-        :param toolkits: Toolkit configuration (same format as ``create``).
-        :param tools: Per-toolkit tool configuration (same format as ``create``).
-        :param tags: Global MCP tag filter (same format as ``create``).
-        :param manage_connections: Connection management config, ``True``/``False``,
-            or ``None`` to clear.
-        :param auth_configs: Auth config overrides per toolkit.
-        :param connected_accounts: Connected account overrides per toolkit.
-        :param workbench: Workbench configuration or ``None`` to clear.
-        :param multi_account: Multi-account configuration or ``None`` to clear.
-        :param preload: Preload configuration.
+        All parameters use the same types as the Stainless-generated
+        ``client.tool_router.session.patch()`` method.
         """
         from composio.core.models.tool_router import _session_preload_config
 
-        patch_kwargs: t.Dict[str, t.Any] = {"session_id": self.session_id}
-
-        # Transform toolkits
-        if toolkits is not None:
-            if isinstance(toolkits, list):
-                patch_kwargs["toolkits"] = {"enable": toolkits}
-            else:
-                patch_kwargs["toolkits"] = toolkits
-
-        # Transform tools
-        if tools is not None:
-            tools_payload: t.Dict[str, t.Any] = {}
-            for toolkit_slug, config in tools.items():
-                if isinstance(config, list):
-                    tools_payload[toolkit_slug] = {"enable": config}
-                elif isinstance(config, dict):
-                    cfg = t.cast(t.Dict[str, t.Any], config)
-                    transformed: t.Dict[str, t.Any] = {}
-                    if "enable" in cfg:
-                        transformed["enable"] = cfg["enable"]
-                    if "disable" in cfg:
-                        transformed["disable"] = cfg["disable"]
-                    if "tags" in cfg:
-                        tags_val = cfg["tags"]
-                        if isinstance(tags_val, list):
-                            transformed["tags"] = {"enable": tags_val}
-                        elif isinstance(tags_val, dict):
-                            transformed["tags"] = tags_val
-                    tools_payload[toolkit_slug] = transformed
-            patch_kwargs["tools"] = tools_payload
-
-        # Transform tags
-        if tags is not None:
-            if isinstance(tags, list):
-                patch_kwargs["tags"] = {"enable": tags}
-            elif isinstance(tags, dict):
-                patch_kwargs["tags"] = tags
-
-        if auth_configs is not None:
-            patch_kwargs["auth_configs"] = auth_configs
-
-        if connected_accounts is not None:
-            patch_kwargs["connected_accounts"] = {
-                k: [v] if isinstance(v, str) else v
-                for k, v in connected_accounts.items()
-            }
-
-        # Transform manage_connections (omit sentinel means "don't touch")
-        if manage_connections is not omit:
-            if manage_connections is None:
-                patch_kwargs["manage_connections"] = None
-            elif isinstance(manage_connections, bool):
-                patch_kwargs["manage_connections"] = {"enable": manage_connections}
-            else:
-                mc: t.Dict[str, t.Any] = {}
-                if "enable" in manage_connections:
-                    mc["enable"] = manage_connections["enable"]
-                if "callback_url" in manage_connections:
-                    mc["callback_url"] = manage_connections["callback_url"]
-                if "wait_for_connections" in manage_connections:
-                    mc["enable_wait_for_connections"] = manage_connections[
-                        "wait_for_connections"
-                    ]
-                patch_kwargs["manage_connections"] = mc
-
-        # Transform workbench (omit sentinel means "don't touch")
-        if workbench is not omit:
-            if workbench is None:
-                patch_kwargs["workbench"] = None
-            else:
-                wb: t.Dict[str, t.Any] = {}
-                if "enable" in workbench:
-                    wb["enable"] = workbench["enable"]
-                if "enable_proxy_execution" in workbench:
-                    wb["enable_proxy_execution"] = workbench["enable_proxy_execution"]
-                if "auto_offload_threshold" in workbench:
-                    wb["auto_offload_threshold"] = workbench["auto_offload_threshold"]
-                if "sandbox_size" in workbench:
-                    wb["sandbox_size"] = workbench["sandbox_size"]
-                patch_kwargs["workbench"] = wb
-
-        # Transform multi_account (omit sentinel means "don't touch")
-        if multi_account is not omit:
-            if multi_account is None:
-                patch_kwargs["multi_account"] = None
-            else:
-                patch_kwargs["multi_account"] = multi_account
-
-        if preload is not None:
-            patch_kwargs["preload"] = preload
-
-        response = self._client.tool_router.session.patch(**patch_kwargs)
+        response = self._client.tool_router.session.patch(
+            session_id=self.session_id,
+            toolkits=toolkits,
+            tools=tools,
+            tags=tags,
+            auth_configs=auth_configs,
+            connected_accounts=connected_accounts,
+            manage_connections=manage_connections,
+            workbench=workbench,
+            multi_account=multi_account,
+            preload=preload,
+        )
         self.preload = _session_preload_config(response.config.preload)
