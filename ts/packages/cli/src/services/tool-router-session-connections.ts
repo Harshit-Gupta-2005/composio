@@ -127,7 +127,10 @@ export const resolveToolRouterSessionConnections = (
         });
 
         if (unknownStatuses.size > 0) {
-          yield* Effect.logWarning(
+          // Service-layer code: peers use `Effect.logDebug` for diagnostic
+          // signal. The user-facing `ui.log.warn` channel runs from command
+          // layers (e.g. `connected-accounts.list.cmd.ts`).
+          yield* Effect.logDebug(
             `[ToolRouterSession] received unrecognized connected_account.status ` +
               `value(s): ${[...unknownStatuses].join(', ')}. Treating as 'UNKNOWN' ` +
               `(not selectable). Run "composio upgrade" to pick up the latest schema.`
