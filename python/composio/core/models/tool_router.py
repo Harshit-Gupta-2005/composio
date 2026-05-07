@@ -994,10 +994,9 @@ class ToolRouter(Resource, t.Generic[TTool, TToolCollection]):
         """
         Retrieve and use an existing tool router session, optionally attaching custom tools.
 
-        When ``custom_tools`` or ``custom_toolkits`` are provided, the SDK calls the
-        v3.1 ``/attach`` endpoint which validates and registers them inline for this
-        session without persisting them server-side.  Without customs it falls back to
-        the standard v3 retrieve endpoint.
+        When ``custom_tools`` or ``custom_toolkits`` are provided, the SDK
+        attaches them to the session so they are available for search and
+        execution.  Without customs it simply rehydrates the existing session.
 
         :param session_id: The session ID to retrieve
         :param custom_tools: Optional custom tools to attach to the session.
