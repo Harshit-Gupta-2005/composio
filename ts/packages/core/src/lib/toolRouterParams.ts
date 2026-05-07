@@ -200,7 +200,7 @@ export const transformToolRouterMultiAccountParams = (
   const transformedParams = {
     enable: params.enable,
     max_accounts_per_toolkit: params.maxAccountsPerToolkit,
-    require_explicit_selection: params.requireExplicitSelection,
+    require_explicit_selection: params.requireExplicitSelection ?? (params.enable ? true : undefined),
   };
 
   if (
@@ -272,7 +272,11 @@ export const transformToolRouterUpdateParams = (
     if (config.multiAccount === null) {
       params.multi_account = null;
     } else {
-      params.multi_account = transformToolRouterMultiAccountParams(config.multiAccount as ToolRouterCreateSessionConfig['multiAccount']);
+      const ma: Record<string, unknown> = {};
+      if (config.multiAccount.enable !== undefined) ma.enable = config.multiAccount.enable;
+      if (config.multiAccount.maxAccountsPerToolkit !== undefined) ma.max_accounts_per_toolkit = config.multiAccount.maxAccountsPerToolkit;
+      if (config.multiAccount.requireExplicitSelection !== undefined) ma.require_explicit_selection = config.multiAccount.requireExplicitSelection;
+      params.multi_account = ma as SessionPatchParams.MultiAccount;
     }
   }
   if (config.preload !== undefined) {

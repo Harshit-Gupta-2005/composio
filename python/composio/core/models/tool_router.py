@@ -867,7 +867,10 @@ class ToolRouter(Resource, t.Generic[TTool, TToolCollection]):
                 create_params["workbench"] = execution_payload
 
         if multi_account is not None:
-            create_params["multi_account"] = multi_account
+            ma = dict(multi_account)
+            if ma.get("enable") and "require_explicit_selection" not in ma:
+                ma["require_explicit_selection"] = True
+            create_params["multi_account"] = ma
 
         if preload is not None:
             create_params["preload"] = preload

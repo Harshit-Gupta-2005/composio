@@ -1443,7 +1443,7 @@ describe('ToolRouter', () => {
             multi_account: {
               enable: true,
               max_accounts_per_toolkit: undefined,
-              require_explicit_selection: undefined,
+              require_explicit_selection: true,
             },
           })
         );
@@ -1503,7 +1503,7 @@ describe('ToolRouter', () => {
             multi_account: {
               enable: true,
               max_accounts_per_toolkit: 5,
-              require_explicit_selection: undefined,
+              require_explicit_selection: true,
             },
           })
         );

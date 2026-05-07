@@ -20,7 +20,7 @@ describe('transformToolRouterMultiAccountParams', () => {
     expect(result).toEqual({
       enable: true,
       max_accounts_per_toolkit: undefined,
-      require_explicit_selection: undefined,
+      require_explicit_selection: true,
     });
   });
 

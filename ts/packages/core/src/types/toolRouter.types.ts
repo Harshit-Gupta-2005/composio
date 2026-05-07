@@ -627,7 +627,11 @@ export interface ToolRouterUpdateSessionConfig {
   connectedAccounts?: Record<string, string | string[]>;
   manageConnections?: ToolRouterCreateSessionConfig['manageConnections'] | null;
   workbench?: ToolRouterCreateSessionConfig['workbench'] | null;
-  multiAccount?: ToolRouterCreateSessionConfig['multiAccount'] | null;
+  multiAccount?: {
+    enable?: boolean;
+    maxAccountsPerToolkit?: number;
+    requireExplicitSelection?: boolean;
+  } | null;
   preload?: ToolRouterCreateSessionConfig['preload'];
 }
 

@@ -786,6 +786,7 @@ class TestToolRouter:
         assert kwargs["multi_account"] == {
             "enable": True,
             "max_accounts_per_toolkit": 5,
+            "require_explicit_selection": True,
         }
 
     def test_create_session_with_experimental_config(self, tool_router, mock_client):
