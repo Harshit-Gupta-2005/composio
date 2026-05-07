@@ -96,9 +96,18 @@ Each OAuth app you bring gets its own ingress URL within a project:
 https://backend.composio.dev/api/v3.1/webhook_ingress/{toolkit_slug}/{we_xxx}/trigger_event
 ```
 
-A single OAuth app can serve at most one Composio project, since providers accept only one callback URL per OAuth app and each ingress URL routes to a single project. The upside: every project becomes its own webhook tenant with isolated ingress rate limits, its own signing secret and app-level token, clean fan-out (events only reach that project's triggers), and per-project metering. Repeat verification handshakes are rejected after the endpoint is verified, so the signing secret can't be silently swapped.
+A single OAuth app can serve at most one Composio project: providers accept only one callback URL per OAuth app, and each ingress URL routes to a single project. In return, every project becomes its own webhook tenant — with:
 
-Provider events are verified at ingress against the endpoint's signing secret before any trigger fires — HMAC-SHA256 for Slack, Ed25519 or shared-token matching for others. For providers that sign a request timestamp, replay protection additionally rejects requests outside the allowed skew window. Unsigned or tampered requests get a `400` at ingress, so third parties cannot spoof events onto your triggers.
+- **Its own ingress rate limit and backpressure budget**
+- **Its own signing secret and app-level token**, scoped to this project alone. Repeat verification handshakes are rejected after the endpoint is verified, so the signing secret can't be silently swapped by a forged challenge.
+- **Clean fan-out** — events reach only that project's trigger instances
+- **Per-project metering**
+
+Every inbound event is signature-checked at ingress before any trigger fires:
+
+- **HMAC-SHA256** for Slack, **Ed25519** or shared-token matching for other providers
+- **Timestamp replay protection** — when the provider signs a request timestamp, requests outside the allowed skew window are rejected
+- **Unsigned or tampered requests** are rejected with `400` at ingress, so third parties can't spoof events onto your triggers
 
 <Callout type="warn">
 **Sharing one OAuth app across projects?** Consolidate to a single project or register separate OAuth apps per project before continuing.
