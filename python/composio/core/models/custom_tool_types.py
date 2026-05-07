@@ -110,28 +110,9 @@ class CustomTool:
     preload: t.Optional[bool] = None
 
 
-class CustomToolWireDefinition(
-    session_create_params.ExperimentalCustomTool,
-    total=False,
-):
-    preload: bool
-
-
-class CustomToolkitToolWireDefinition(
-    session_create_params.ExperimentalCustomToolkitTool,
-    total=False,
-):
-    preload: bool
-
-
-class CustomToolkitWireDefinition(te.TypedDict, total=False):
-    # Stainless 1.37.0 lacks the input-only SDK preload hint on custom
-    # toolkits, so this mirrors the generated shape and adds that single field.
-    description: te.Required[str]
-    name: te.Required[str]
-    slug: te.Required[str]
-    tools: te.Required[t.Iterable[CustomToolkitToolWireDefinition]]
-    preload: bool
+CustomToolWireDefinition = session_create_params.ExperimentalCustomTool
+CustomToolkitToolWireDefinition = session_create_params.ExperimentalCustomToolkitTool
+CustomToolkitWireDefinition = session_create_params.ExperimentalCustomToolkit
 
 
 class InlineCustomToolsWirePayload(te.TypedDict, total=False):
