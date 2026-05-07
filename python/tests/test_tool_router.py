@@ -509,7 +509,7 @@ class TestToolRouter:
 
         call_args = mock_client.tool_router.session.create.call_args
         kwargs = call_args.kwargs
-        assert kwargs["connected_accounts"] == {"github": "ca_xxx", "slack": "ca_yyy"}
+        assert kwargs["connected_accounts"] == {"github": ["ca_xxx"], "slack": ["ca_yyy"]}
 
     def test_create_session_with_workbench_config(self, tool_router, mock_client):
         """Test creating a session with workbench configuration."""
