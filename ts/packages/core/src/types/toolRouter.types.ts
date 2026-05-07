@@ -612,28 +612,61 @@ export type ToolRouterSessionProxyExecuteFn = (
   params: SessionProxyExecuteParams
 ) => Promise<ToolRouterSessionProxyExecuteResponse>;
 
-/**
- * Config accepted by `session.update()`. Same camelCase shape as
- * `ToolRouterCreateSessionConfig` but every field is optional and
- * `manageConnections`, `workbench`, and `multiAccount` accept `null`
- * to clear the stored value. `sessionPreset` and custom tools/toolkits
- * are not supported on update.
- */
-export interface ToolRouterUpdateSessionConfig {
-  toolkits?: ToolRouterCreateSessionConfig['toolkits'];
-  tools?: ToolRouterCreateSessionConfig['tools'];
-  tags?: ToolRouterCreateSessionConfig['tags'];
-  authConfigs?: Record<string, string>;
-  connectedAccounts?: Record<string, string | string[]>;
-  manageConnections?: ToolRouterCreateSessionConfig['manageConnections'] | null;
-  workbench?: ToolRouterCreateSessionConfig['workbench'] | null;
-  multiAccount?: {
-    enable?: boolean;
-    maxAccountsPerToolkit?: number;
-    requireExplicitSelection?: boolean;
-  } | null;
-  preload?: ToolRouterCreateSessionConfig['preload'];
-}
+export const ToolRouterUpdateSessionConfigSchema = z
+  .object({
+    toolkits: z
+      .union([
+        ToolRouterToolkitsParamSchema,
+        ToolRouterToolkitsDisabledConfigSchema,
+        ToolRouterToolkitsEnabledConfigSchema,
+      ])
+      .optional(),
+    tools: z
+      .record(z.string(), z.union([ToolRouterToolsParamSchema, ToolRouterConfigToolsSchema]))
+      .optional(),
+    tags: ToolRouterConfigTagsSchema.optional(),
+    authConfigs: z.record(z.string(), z.string()).optional(),
+    connectedAccounts: z
+      .record(z.string(), z.union([z.string(), z.array(z.string())]))
+      .transform((rec) => {
+        const out: Record<string, string[]> = {};
+        for (const [k, v] of Object.entries(rec)) {
+          out[k] = typeof v === 'string' ? [v] : v;
+        }
+        return out;
+      })
+      .optional(),
+    manageConnections: z
+      .union([z.boolean(), ToolRouterConfigManageConnectionsSchema])
+      .nullable()
+      .optional(),
+    workbench: z
+      .object({
+        enable: z.boolean().optional(),
+        enableProxyExecution: z.boolean().optional(),
+        autoOffloadThreshold: z.number().optional(),
+        sandboxSize: SandboxSizeSchema.optional(),
+      })
+      .nullable()
+      .optional(),
+    multiAccount: z
+      .object({
+        enable: z.boolean().optional(),
+        maxAccountsPerToolkit: z.number().int().min(2).max(10).optional(),
+        requireExplicitSelection: z.boolean().optional(),
+      })
+      .nullable()
+      .optional(),
+    preload: z
+      .object({
+        tools: z.union([z.array(z.string()), z.literal('all')]).optional(),
+      })
+      .strict()
+      .optional(),
+  })
+  .partial();
+
+export type ToolRouterUpdateSessionConfig = z.infer<typeof ToolRouterUpdateSessionConfigSchema>;
 
 export type ToolRouterSessionUpdateFn = (config: ToolRouterUpdateSessionConfig) => Promise<void>;
 
