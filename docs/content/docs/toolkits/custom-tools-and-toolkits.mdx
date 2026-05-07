@@ -393,7 +393,11 @@ A custom toolkit groups related standalone tools under a namespace. Tools inside
 <Tab value="TypeScript">
 ```typescript
 // @noErrors
-import { Composio, experimental_createTool, experimental_createToolkit } from "@composio/core";
+import {
+  Composio,
+  experimental_createTool,
+  experimental_createToolkit,
+} from "@composio/core";
 import { z } from "zod/v3";
 // ---cut---
 
@@ -490,6 +494,123 @@ tools = session.tools()
 </IntegrationContent>
 
 </IntegrationTabs>
+
+## Preloading custom tools
+
+Custom tools are searchable by default. Set `preload: true` / `preload=True` on a
+custom tool when it should be returned directly from `session.tools()`. For a
+custom toolkit, set preload on the toolkit to expose all of its tools, then use a
+tool-level `preload: false` / `preload=False` to opt out a specific tool.
+
+<Tabs groupId="language" items={['TypeScript', 'Python']} persist>
+<Tab value="TypeScript">
+```typescript
+// @noErrors
+import { Composio, experimental_createTool, experimental_createToolkit } from "@composio/core";
+import { z } from "zod/v3";
+
+const composio = new Composio({ apiKey: "your_api_key" });
+
+const lookupAccount = experimental_createTool("LOOKUP_ACCOUNT", {
+  name: "Lookup account",
+  description: "Look up an account by email",
+  preload: true,
+  inputParams: z.object({
+    email: z.string().describe("Customer email address"),
+  }),
+  execute: async ({ email }) => ({ email, status: "active" }),
+});
+
+const supportTools = experimental_createToolkit("SUPPORT_TOOLS", {
+  name: "Support tools",
+  description: "Internal support workflows",
+  preload: true,
+  tools: [
+    experimental_createTool("GET_TICKET", {
+      name: "Get ticket",
+      description: "Fetch an internal support ticket",
+      inputParams: z.object({
+        ticketId: z.string().describe("Ticket ID"),
+      }),
+      execute: async ({ ticketId }) => ({ ticketId, priority: "high" }),
+    }),
+    experimental_createTool("ARCHIVE_TICKET", {
+      name: "Archive ticket",
+      description: "Archive an internal support ticket",
+      preload: false,
+      inputParams: z.object({
+        ticketId: z.string().describe("Ticket ID"),
+      }),
+      execute: async ({ ticketId }) => ({ ticketId, archived: true }),
+    }),
+  ],
+});
+
+const session = await composio.create("user_1", {
+  experimental: {
+    customTools: [lookupAccount],
+    customToolkits: [supportTools],
+  },
+});
+
+const tools = await session.tools();
+```
+</Tab>
+<Tab value="Python">
+```python
+from pydantic import BaseModel, Field
+
+from composio import Composio
+
+composio = Composio(api_key="your_api_key")
+
+
+class EmailInput(BaseModel):
+    email: str = Field(description="Customer email address")
+
+
+@composio.experimental.tool(preload=True)
+def lookup_account(input: EmailInput, ctx):
+    """Look up an account by email."""
+    return {"email": input.email, "status": "active"}
+
+
+support_tools = composio.experimental.Toolkit(
+    slug="SUPPORT_TOOLS",
+    name="Support tools",
+    description="Internal support workflows",
+    preload=True,
+)
+
+
+class TicketInput(BaseModel):
+    ticket_id: str = Field(description="Ticket ID")
+
+
+@support_tools.tool()
+def get_ticket(input: TicketInput, ctx):
+    """Fetch an internal support ticket."""
+    return {"ticket_id": input.ticket_id, "priority": "high"}
+
+
+@support_tools.tool(preload=False)
+def archive_ticket(input: TicketInput, ctx):
+    """Archive an internal support ticket."""
+    return {"ticket_id": input.ticket_id, "archived": True}
+
+
+session = composio.create(
+    user_id="user_1",
+    experimental={
+        "custom_tools": [lookup_account],
+        "custom_toolkits": [support_tools],
+    },
+)
+
+tools = session.tools()
+```
+</Tab>
+</Tabs>
 
 ## Meta tools integration
 

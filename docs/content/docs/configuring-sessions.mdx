@@ -89,6 +89,161 @@ const session = await composio.create("user_123", {
 </Tab>
 </Tabs>
 
+## Preloading tools
+
+By default, sessions expose [meta tools](/reference/meta-tools) that let the agent
+discover app tools at runtime. Use `preload.tools` when you already know the
+small set of tools that should be returned directly from `session.tools()` and
+the session MCP tool list.
+
+Preloading is useful for frequently used tools because the agent can call them
+without going through search each time. Keep the preloaded set small, generally
+fewer than 20 tools, to avoid context bloat.
+
+<Callout type="info">
+Requires `@composio/core` ≥ `TBD` (TypeScript) or `composio` ≥ `TBD`
+(Python). Older SDKs do not support `preload.tools`,
+`sessionPreset` / `session_preset`, or custom-tool `preload`.
+</Callout>
+
+<Callout type="info">
+`preload.tools` is not supported when `multiAccount.enable` is true. See
+[Managing multiple connected accounts](/docs/managing-multiple-connected-accounts).
+</Callout>
+
+<Tabs groupId="language" items={['Python', 'TypeScript']} persist>
+<Tab value="Python">
+```python
+session = composio.create(
+    user_id="user_123",
+    toolkits=["granola_mcp"],
+    preload={
+        "tools": [
+            "GRANOLA_MCP_LIST_MEETINGS",
+            "GRANOLA_MCP_QUERY_GRANOLA_MEETINGS",
+        ],
+    },
+)
+
+tools = session.tools()
+```
+</Tab>
+<Tab value="TypeScript">
+```typescript
+import { Composio } from '@composio/core';
+const composio = new Composio({ apiKey: 'your_api_key' });
+// ---cut---
+const session = await composio.create("user_123", {
+  toolkits: ["granola_mcp"],
+  preload: {
+    tools: [
+      "GRANOLA_MCP_LIST_MEETINGS",
+      "GRANOLA_MCP_QUERY_GRANOLA_MEETINGS",
+    ],
+  },
+});
+
+const tools = await session.tools();
+```
+</Tab>
+</Tabs>
+
+For SDK custom tools, set `preload: true` on the custom tool or custom toolkit
+instead of listing `LOCAL_*` slugs in `preload.tools`. See
+[Preloading custom tools](/docs/toolkits/custom-tools-and-toolkits#preloading-custom-tools).
+
+Use the `preload.tools = "all"` shortcut (`preload={"tools": "all"}` in Python,
+`preload: { tools: "all" }` in TypeScript) to preload every Composio-managed
+tool allowed by the session filters.
+
+### Direct tools preset
+
+The direct tools preset preloads every tool allowed by session filters into the
+session's tool list and disables session meta tools by default. This can be
+useful for specialized agents with a narrow tool set that do not need dynamic
+tool discovery, in-chat auth, or workbench helpers.
+
+This is not the default mode for broad agents. The default session behavior keeps
+meta tools available so the agent can search for relevant tools and avoid
+context bloat.
+
+<Tabs groupId="language" items={['Python', 'TypeScript']} persist>
+<Tab value="Python">
+```python
+from composio import SESSION_PRESET_DIRECT_TOOLS
+
+session = composio.create(
+    user_id="user_123",
+    toolkits=["granola_mcp"],
+    session_preset=SESSION_PRESET_DIRECT_TOOLS,
+)
+
+tools = session.tools()
+```
+</Tab>
+<Tab value="TypeScript">
+```typescript
+import { Composio, SessionPreset } from '@composio/core';
+const composio = new Composio({ apiKey: 'your_api_key' });
+// ---cut---
+const session = await composio.create("user_123", {
+  toolkits: ["granola_mcp"],
+  sessionPreset: SessionPreset.DIRECT_TOOLS,
+});
+
+const tools = await session.tools();
+```
+</Tab>
+</Tabs>
+
+**Enable selected meta tools**
+
+When using the direct tools preset, you can selectively re-enable supported meta
+tool groups that your agent still needs. For example, this session loads Granola
+tools upfront while keeping connection management and workbench support
+available:
+
+<Tabs groupId="language" items={['Python', 'TypeScript']} persist>
+<Tab value="Python">
+```python
+from composio import SESSION_PRESET_DIRECT_TOOLS
+
+session = composio.create(
+    user_id="user_123",
+    toolkits=["granola_mcp"],
+    session_preset=SESSION_PRESET_DIRECT_TOOLS,
+    manage_connections={
+        "enable": True,
+    },
+    workbench={
+        "enable": True,
+    },
+)
+
+tools = session.tools()
+```
+</Tab>
+<Tab value="TypeScript">
+```typescript
+import { Composio, SessionPreset } from '@composio/core';
+const composio = new Composio({ apiKey: 'your_api_key' });
+// ---cut---
+const session = await composio.create("user_123", {
+  toolkits: ["granola_mcp"],
+  sessionPreset: SessionPreset.DIRECT_TOOLS,
+  manageConnections: {
+    enable: true,
+  },
+  workbench: {
+    enable: true,
+  },
+});
+
+const tools = await session.tools();
+```
+</Tab>
+</Tabs>
+
 ## Custom auth configs
 
 Use your own OAuth credentials instead of Composio's defaults:

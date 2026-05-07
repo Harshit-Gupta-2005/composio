@@ -1,0 +1,73 @@
+---
+title: "Sessions add preloaded tools and direct tools preset"
+description: "Sessions can now expose frequently used tools directly from session.tools(), and specialized agents can use a direct tools preset with selected meta tools enabled as needed."
+date: "2026-05-07"
+---
+
+Sessions now support preloading known tools into `session.tools()` and the
+session MCP tool list. This works for Composio-managed tools, while SDK custom
+tools can be exposed directly from `session.tools()` with `preload: true`.
+
+Use preloading for small, stable tool sets. Keep the preloaded set focused,
+generally fewer than 20 tools, to avoid context bloat.
+
+### SDK versions
+
+| SDK | Minimum version |
+| --- | --- |
+| TypeScript `@composio/core` | `TBD` |
+| Python `composio` | `TBD` |
+
+```typescript
+import { Composio } from '@composio/core';
+const composio = new Composio({ apiKey: 'your_api_key' });
+
+const session = await composio.create("user_123", {
+  toolkits: ["granola_mcp"],
+  preload: {
+    tools: [
+      "GRANOLA_MCP_LIST_MEETINGS",
+      "GRANOLA_MCP_QUERY_GRANOLA_MEETINGS",
+    ],
+  },
+});
+
+const tools = await session.tools();
+```
+
+### Direct tools preset
+
+Specialized agents with a narrow tool set can use the direct tools preset to
+load every tool allowed by session filters into the session's tool list and
+disable session meta tools by default.
+
+```typescript
+import { Composio, SessionPreset } from '@composio/core';
+const composio = new Composio({ apiKey: 'your_api_key' });
+
+const session = await composio.create("user_123", {
+  toolkits: ["granola_mcp"],
+  sessionPreset: SessionPreset.DIRECT_TOOLS,
+});
+```
+
+For agents that still need selected helper behavior, supported meta tool groups
+can be enabled alongside the preset:
+
+```typescript
+const session = await composio.create("user_123", {
+  toolkits: ["granola_mcp"],
+  sessionPreset: SessionPreset.DIRECT_TOOLS,
+  manageConnections: {
+    enable: true,
+  },
+  workbench: {
+    enable: true,
+  },
+});
+```
+
+See [Preloading tools](/docs/configuring-sessions#preloading-tools),
+[Direct tools preset](/docs/configuring-sessions#direct-tools-preset), and
+[Preloading custom tools](/docs/toolkits/custom-tools-and-toolkits#preloading-custom-tools)
+for Python examples and full guidance.
