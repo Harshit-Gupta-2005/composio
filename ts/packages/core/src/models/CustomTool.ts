@@ -36,7 +36,10 @@ import {
   type CustomToolkitWireDefinition,
   type InputParamsSchema,
 } from '../types/customTool.types';
-import type { SessionCreateResponse } from '@composio/client/resources/tool-router/session/session.mjs';
+import type {
+  SessionCreateResponse,
+  SessionRetrieveResponse,
+} from '@composio/client/resources/tool-router/session/session.mjs';
 import { ValidationError } from '../errors';
 
 /** Prefix applied by the backend to local tool slugs for disambiguation. */
@@ -331,7 +334,12 @@ export function buildCustomToolsMap(
     }
   }
 
-  return { byFinalSlug, byOriginalSlug, toolkits };
+  return {
+    byFinalSlug,
+    byOriginalSlug,
+    toolkits,
+    tools: tools.length ? tools : undefined,
+  };
 }
 
 /**
@@ -428,7 +436,10 @@ export function serializeCustomToolkits(
 export function buildCustomToolsMapFromResponse(
   tools: CustomTool[],
   toolkits: CustomToolkit[] | undefined,
-  experimental: SessionCreateResponse['experimental'] | undefined
+  experimental:
+    | SessionCreateResponse['experimental']
+    | SessionRetrieveResponse['experimental']
+    | undefined
 ): CustomToolsMap {
   const byFinalSlug = new Map<string, CustomToolsMapEntry>();
   const byOriginalSlug = new Map<string, CustomToolsMapEntry>();
@@ -478,7 +489,12 @@ export function buildCustomToolsMapFromResponse(
     }
   }
 
-  return { byFinalSlug, byOriginalSlug, toolkits };
+  return {
+    byFinalSlug,
+    byOriginalSlug,
+    toolkits,
+    tools: tools.length ? tools : undefined,
+  };
 }
 
 /**

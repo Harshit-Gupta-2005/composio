@@ -266,6 +266,8 @@ export type CustomToolsMap = {
   byOriginalSlug: Map<string, CustomToolsMapEntry>;
   /** The original custom toolkits passed at session creation — used for session.customToolkits() */
   toolkits?: CustomToolkit[];
+  /** The original standalone custom tools passed at session creation — kept for inline re-injection on subsequent v3.1 requests. */
+  tools?: CustomTool[];
 };
 
 // ────────────────────────────────────────────────────────────────

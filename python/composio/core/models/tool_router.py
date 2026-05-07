@@ -31,6 +31,9 @@ from composio.core.models.custom_tool_types import (
     CustomToolsMap,
     InlineCustomToolsWirePayload,
 )
+from composio_client.types.tool_router.session_retrieve_response import (
+    SessionRetrieveResponse,
+)
 from composio.core.models.tool_router_session import (
     ToolRouterSession,
     ToolRouterSessionPreloadConfig,
@@ -534,7 +537,7 @@ class ToolRouter(Resource, t.Generic[TTool, TToolCollection]):
             t.Union[bool, ToolRouterManageConnectionsConfig]
         ] = None,
         auth_configs: t.Optional[t.Dict[str, str]] = None,
-        connected_accounts: t.Optional[t.Dict[str, str]] = None,
+        connected_accounts: t.Optional[t.Dict[str, t.List[str]]] = None,
         workbench: t.Optional[ToolRouterWorkbenchConfig] = None,
         multi_account: t.Optional[ToolRouterMultiAccountConfig] = None,
         preload: t.Optional[ToolRouterPreloadConfig] = None,
@@ -593,8 +596,10 @@ class ToolRouter(Resource, t.Generic[TTool, TToolCollection]):
                                     Example: {'enable': True, 'callback_url': 'https://example.com/callback', 'wait_for_connections': True}
         :param auth_configs: Optional mapping of toolkit slug to auth config ID.
                            Example: {'github': 'ac_xxx', 'slack': 'ac_yyy'}
-        :param connected_accounts: Optional mapping of toolkit slug to connected account ID.
-                                  Example: {'github': 'ca_xxx', 'slack': 'ca_yyy'}
+        :param connected_accounts: Optional mapping of toolkit slug to connected account IDs.
+                                  Only one account per toolkit is allowed when multi-account
+                                  mode is disabled.
+                                  Example: {'github': ['ca_xxx'], 'slack': ['ca_yyy']}
         :param workbench: Optional workbench configuration. Dict with:
                          - 'enable' (bool): Whether to enable the workbench entirely.
                            Defaults to True. When set to False, no code execution tools
@@ -981,11 +986,23 @@ class ToolRouter(Resource, t.Generic[TTool, TToolCollection]):
             inline_custom_tools_payload=inline_custom_tools_payload,
         )
 
-    def use(self, session_id: str) -> ToolRouterSession[TTool, TToolCollection]:
+    def use(
+        self,
+        session_id: str,
+        *,
+        custom_tools: t.Optional[t.List[CustomTool]] = None,
+        custom_toolkits: t.Optional[t.List[ExperimentalToolkit]] = None,
+    ) -> ToolRouterSession[TTool, TToolCollection]:
         """
-        Retrieve and use an existing tool router session.
+        Retrieve and use an existing tool router session, optionally attaching custom tools.
+
+        When ``custom_tools`` or ``custom_toolkits`` are provided, the SDK
+        attaches them to the session so they are available for search and
+        execution.  Without customs it simply rehydrates the existing session.
 
         :param session_id: The session ID to retrieve
+        :param custom_tools: Optional custom tools to attach to the session.
+        :param custom_toolkits: Optional custom toolkits to attach to the session.
         :return: Tool router session object
 
         Example:
@@ -993,15 +1010,16 @@ class ToolRouter(Resource, t.Generic[TTool, TToolCollection]):
             from composio import Composio
 
             composio = Composio()
-            tool_router = composio.tool_router
 
-            # Retrieve an existing session
-            session = tool_router.use('session_123')
+            # Simple rehydration
+            session = composio.use('session_123')
 
-            # Use the session
-            tools = session.tools()
-            connection = session.authorize('github')
-            toolkit_states = session.toolkits()
+            # Rehydration with custom tools
+            session = composio.use(
+                'session_123',
+                custom_tools=[my_tool],
+                custom_toolkits=[my_toolkit],
+            )
             ```
         """
         if self._provider is None:
@@ -1010,8 +1028,43 @@ class ToolRouter(Resource, t.Generic[TTool, TToolCollection]):
                 "Please initialize ToolRouter with a provider."
             )
 
-        # Retrieve the session from the API
-        session = self._client.tool_router.session.retrieve(session_id)
+        has_customs = bool(custom_tools or custom_toolkits)
+        inline_custom_tools_payload: t.Optional[InlineCustomToolsWirePayload] = None
+
+        if has_customs:
+            inline_custom_tools_payload = InlineCustomToolsWirePayload()
+            if custom_tools:
+                inline_custom_tools_payload["custom_tools"] = serialize_custom_tools(
+                    custom_tools
+                )
+            if custom_toolkits:
+                inline_custom_tools_payload["custom_toolkits"] = (
+                    serialize_custom_toolkits(custom_toolkits)
+                )
+
+            from urllib.parse import quote
+
+            session = self._client.post(
+                f"/api/v3.1/tool_router/session/{quote(session_id, safe='')}/attach",
+                body={"experimental": inline_custom_tools_payload},
+                cast_to=SessionRetrieveResponse,
+            )
+        else:
+            session = self._client.tool_router.session.retrieve(session_id)
+
+        custom_tools_map: t.Optional[CustomToolsMap] = None
+        user_id: t.Optional[str] = None
+        if has_customs:
+            custom_tools_map = build_custom_tools_map_from_response(
+                tools=custom_tools or [],
+                toolkits=custom_toolkits,
+                experimental=session.experimental,
+            )
+            user_id = session.config.user_id
+
+        preloaded_custom_tool_slugs = get_preloaded_custom_tool_slugs(
+            custom_tools_map,
+        )
 
         files_mount = ToolRouterSessionFilesMount(self._client, session.session_id)
         experimental_response = ToolRouterSessionExperimental(
@@ -1019,7 +1072,6 @@ class ToolRouter(Resource, t.Generic[TTool, TToolCollection]):
             assistive_prompt=None,
         )
 
-        # Create and return the session
         return ToolRouterSession(
             client=self._client,
             provider=self._provider,
@@ -1033,7 +1085,11 @@ class ToolRouter(Resource, t.Generic[TTool, TToolCollection]):
                 url=session.mcp.url,
             ),
             experimental=experimental_response,
+            custom_tools_map=custom_tools_map,
+            user_id=user_id,
             preload=_session_preload_config(session.config.preload),
+            preloaded_custom_tool_slugs=preloaded_custom_tool_slugs,
+            inline_custom_tools_payload=inline_custom_tools_payload,
         )
 
 

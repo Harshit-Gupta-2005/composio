@@ -19,6 +19,7 @@ import { getDefaultHeaders } from './utils/session';
 import { ToolkitVersionParam } from './types/tool.types';
 import { ToolRouter } from './models/ToolRouter';
 import { ToolRouterCreateSessionConfig, Session } from './types/toolRouter.types';
+import type { CustomTool, CustomToolkit } from './types/customTool.types';
 import { CONFIG_DEFAULTS } from './utils/config-defaults';
 import { expandHomeAndResolve, expandHomeAndResolveMany } from './utils/fileDirs';
 export type ComposioConfig<
@@ -234,7 +235,10 @@ export class Composio<
    * @param id {string} The id of the session to use
    * @returns {Promise<Session<TToolCollection, TTool, TProvider>>} The tool router session
    */
-  use: (id: string) => Promise<Session<unknown, unknown, TProvider>>;
+  use: (
+    id: string,
+    options?: { customTools?: CustomTool[]; customToolkits?: CustomToolkit[] }
+  ) => Promise<Session<unknown, unknown, TProvider>>;
 
   /**
    * Creates a new instance of the Composio SDK.

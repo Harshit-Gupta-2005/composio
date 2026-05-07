@@ -1036,8 +1036,8 @@ describe('ToolRouter', () => {
 
         const config: ToolRouterCreateSessionConfig = {
           connectedAccounts: {
-            gmail: 'conn_123',
-            slack: 'conn_456',
+            gmail: ['conn_123'],
+            slack: ['conn_456'],
           },
         };
 
@@ -1048,8 +1048,8 @@ describe('ToolRouter', () => {
           toolkits: undefined,
           auth_configs: undefined,
           connected_accounts: {
-            gmail: 'conn_123',
-            slack: 'conn_456',
+            gmail: ['conn_123'],
+            slack: ['conn_456'],
           },
           tools: undefined,
           tags: undefined,
@@ -1066,7 +1066,7 @@ describe('ToolRouter', () => {
             gmail: 'auth_config_123',
           },
           connectedAccounts: {
-            slack: 'conn_456',
+            slack: ['conn_456'],
           },
         };
 
@@ -1079,7 +1079,7 @@ describe('ToolRouter', () => {
             gmail: 'auth_config_123',
           },
           connected_accounts: {
-            slack: 'conn_456',
+            slack: ['conn_456'],
           },
           tools: undefined,
           tags: undefined,

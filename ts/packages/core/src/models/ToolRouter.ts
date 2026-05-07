@@ -35,6 +35,7 @@ import {
   SessionCreateResponse,
   SessionRetrieveResponse,
 } from '@composio/client/resources/tool-router/session/session.mjs';
+import type { CustomTool, CustomToolkit, InlineCustomToolsWirePayload } from '../types/customTool.types';
 import {
   transformToolRouterTagsParams,
   transformToolRouterToolsParams,
@@ -243,17 +244,62 @@ export class ToolRouter<
    * console.log(session.mcp.headers);
    * ```
    */
-  async use(id: string): Promise<Session<TToolCollection, TTool, TProvider>> {
-    const session = await this.client.toolRouter.session.retrieve(id);
+  async use(
+    id: string,
+    options?: { customTools?: CustomTool[]; customToolkits?: CustomToolkit[] }
+  ): Promise<Session<TToolCollection, TTool, TProvider>> {
+    const customTools = options?.customTools;
+    const customToolkits = options?.customToolkits;
+    const hasCustoms = !!(customTools?.length || customToolkits?.length);
+
+    let session: SessionRetrieveResponse;
+    let inlineCustomToolsPayload: InlineCustomToolsWirePayload | undefined;
+
+    if (hasCustoms) {
+      const serializedTools = customTools?.length ? serializeCustomTools(customTools) : undefined;
+      const serializedToolkits = customToolkits?.length
+        ? serializeCustomToolkits(customToolkits)
+        : undefined;
+
+      inlineCustomToolsPayload = {
+        custom_tools: serializedTools,
+        custom_toolkits: serializedToolkits,
+      };
+
+      session = await this.client.post<SessionRetrieveResponse>(
+        `/api/v3.1/tool_router/session/${encodeURIComponent(id)}/attach`,
+        { body: { experimental: inlineCustomToolsPayload } }
+      );
+    } else {
+      session = await this.client.toolRouter.session.retrieve(id);
+    }
+
+    let customToolsMap: CustomToolsMap | undefined;
+    let userId: string | undefined;
+    if (hasCustoms) {
+      customToolsMap = buildCustomToolsMapFromResponse(
+        customTools ?? [],
+        customToolkits,
+        session.experimental
+      );
+      userId = session.config.user_id;
+    }
+
+    const metadata = {
+      ...getSessionMetadata(session),
+      preloadedCustomToolSlugs: getPreloadedCustomToolSlugs(customToolsMap),
+      inlineCustomToolsPayload,
+    };
+
     return new ToolRouterSession<TToolCollection, TTool, TProvider>(
       this.client,
       this.config,
       session.session_id,
       this.createMCPServerConfig(session.mcp),
       undefined,
-      undefined,
-      undefined,
-      getSessionMetadata(session)
+      customToolsMap,
+      userId,
+      metadata
     );
   }
 }
