@@ -1000,9 +1000,9 @@ class ToolRouter(Resource, t.Generic[TTool, TToolCollection]):
         """
         Retrieve and use an existing tool router session, optionally attaching custom tools.
 
-        When ``custom_tools`` or ``custom_toolkits`` are provided, the SDK
-        attaches them to the session so they are available for search and
-        execution.  Without customs it simply rehydrates the existing session.
+        The SDK always attaches to the session endpoint. When ``custom_tools``
+        or ``custom_toolkits`` are provided, they are included so they are
+        available for search and execution.
 
         :param session_id: The session ID to retrieve
         :param custom_tools: Optional custom tools to attach to the session.
@@ -1046,15 +1046,18 @@ class ToolRouter(Resource, t.Generic[TTool, TToolCollection]):
                     serialize_custom_toolkits(custom_toolkits)
                 )
 
-            from urllib.parse import quote
+        from urllib.parse import quote
 
-            session = self._client.post(
-                f"/api/v3.1/tool_router/session/{quote(session_id, safe='')}/attach",
-                body={"experimental": inline_custom_tools_payload},
-                cast_to=SessionRetrieveResponse,
-            )
-        else:
-            session = self._client.tool_router.session.retrieve(session_id)
+        body = (
+            {"experimental": inline_custom_tools_payload}
+            if inline_custom_tools_payload is not None
+            else {}
+        )
+        session = self._client.post(
+            f"/api/v3.1/tool_router/session/{quote(session_id, safe='')}/attach",
+            body=body,
+            cast_to=SessionRetrieveResponse,
+        )
 
         custom_tools_map: t.Optional[CustomToolsMap] = None
         user_id: t.Optional[str] = None
