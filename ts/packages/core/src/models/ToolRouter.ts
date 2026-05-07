@@ -261,21 +261,14 @@ export class ToolRouter<
         ? serializeCustomToolkits(customToolkits)
         : undefined;
 
-      const experimentalPayload: {
-        custom_tools?: SessionCreateParams.Experimental.CustomTool[];
-        custom_toolkits?: SessionCreateParams.Experimental.CustomToolkit[];
-      } = {};
-      if (serializedTools) experimentalPayload.custom_tools = serializedTools;
-      if (serializedToolkits) experimentalPayload.custom_toolkits = serializedToolkits;
-
       inlineCustomToolsPayload = {
-        ...(serializedTools ? { custom_tools: serializedTools } : {}),
-        ...(serializedToolkits ? { custom_toolkits: serializedToolkits } : {}),
+        custom_tools: serializedTools,
+        custom_toolkits: serializedToolkits,
       };
 
       session = await this.client.post<SessionRetrieveResponse>(
         `/api/v3.1/tool_router/session/${encodeURIComponent(id)}/attach`,
-        { body: { experimental: experimentalPayload } }
+        { body: { experimental: inlineCustomToolsPayload } }
       );
     } else {
       session = await this.client.toolRouter.session.retrieve(id);

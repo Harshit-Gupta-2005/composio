@@ -1042,21 +1042,13 @@ class ToolRouter(Resource, t.Generic[TTool, TToolCollection]):
                     custom_toolkits
                 )
 
-            inline_custom_tools_payload = {}
-            if "custom_tools" in experimental_payload:
-                inline_custom_tools_payload["custom_tools"] = experimental_payload[
-                    "custom_tools"
-                ]
-            if "custom_toolkits" in experimental_payload:
-                inline_custom_tools_payload["custom_toolkits"] = experimental_payload[
-                    "custom_toolkits"
-                ]
+            inline_custom_tools_payload = experimental_payload
 
             from urllib.parse import quote
 
             session = self._client.post(
                 f"/api/v3.1/tool_router/session/{quote(session_id, safe='')}/attach",
-                body={"experimental": experimental_payload},
+                body={"experimental": inline_custom_tools_payload},
                 cast_to=SessionRetrieveResponse,
             )
         else:
