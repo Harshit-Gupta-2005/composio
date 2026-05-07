@@ -4,13 +4,6 @@ description: Receive trigger events via webhooks or SDK subscriptions
 keywords: [webhooks, subscribe, events, webhook payload, V3]
 ---
 
-<Callout>
-Two webhook URLs sit on opposite sides of Composio — keep them distinct in your head.
-
-- **Provider → Composio (ingress).** A webhook endpoint per OAuth app — Composio configures it for you in most cases. If a trigger type's `requires_webhook_endpoint` flag is true, you [configure the webhook endpoint](/docs/setting-up-triggers/creating-triggers#configuring-the-webhook-endpoint) once per OAuth app before creating the trigger.
-- **Composio → your application (subscription).** This page covers this side: you tell Composio which URL to deliver events to, and Composio signs every request.
-</Callout>
-
 ## Webhooks
 
 Webhooks are the recommended way to receive trigger events in production. To start receiving events, create a webhook subscription with your endpoint URL and select which event types you want to receive. You can subscribe to any combination:

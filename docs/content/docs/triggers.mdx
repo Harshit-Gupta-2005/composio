@@ -8,53 +8,14 @@ When events occur in apps — a new Slack message, a GitHub commit, an incoming 
 
 <Figure src="/images/triggers-flow.svg" srcDark="/images/triggers-flow-dark.svg" alt="Triggers flow: connected apps send events to Composio, which delivers them to your webhook subscription URL via HTTP POST" caption="How triggers deliver events from apps to your application" />
 
-## Two delivery types
+## Two trigger types
 
 | Type | What happens | Examples |
 |---|---|---|
-| **Webhook** | The provider pushes events to a Composio-issued ingress URL in real time. Composio verifies the provider's signature, processes the payload, and fans the event out to matching trigger instances. | Slack, Asana, Notion, Outlook, ... |
+| **Webhook** | The provider pushes events to a Composio-issued ingress URL in real time. Composio verifies the provider's signature, processes the payload, and fans the event out to matching trigger instances. | Slack, Asana, Notion, Outlook |
 | **Polling** | Composio polls the provider on a schedule. Composio managed auth has a 15-minute minimum interval; expect that as the worst-case delay between source event and delivery. | Gmail, Google Calendar |
 
-## End-to-end flow
-
-For every webhook trigger, an event takes the same path on the way to your application:
-
-```
-provider event ──▶ Composio ingress ──▶ trigger fan-out ──▶ webhook subscription ──▶ your application
-```
-
-Two URLs sit on opposite sides of Composio, both configured once:
-
-- **Webhook subscription** — your URL where Composio delivers signed events. One per project. See [Subscribing to triggers](/docs/setting-up-triggers/subscribing-to-events).
-- **Webhook endpoint** — the ingress URL the provider posts events to. Composio configures this for you in most cases; for some webhook triggers, you may need to set it up once per OAuth app — see [Configuring the webhook endpoint](/docs/setting-up-triggers/creating-triggers#configuring-the-webhook-endpoint) on the Creating triggers page.
-
-Composio verifies signatures on both hops:
-
-- **At ingress**, every inbound request is verified against the signing secret on the webhook endpoint. Unsigned or tampered requests are rejected before any trigger fires. When Composio configures the endpoint, the signing secret comes from the connected account's credentials; when you configure it, you store the secret on the endpoint yourself.
-- **At delivery**, every webhook Composio sends to your endpoint is signed with your subscription secret — verify it as described in [Verifying webhooks](/docs/webhook-verification).
-
-## Working with triggers
-
-<Steps>
-<Step>
-**Configure delivery to your application.** Create a [webhook subscription](/docs/setting-up-triggers/subscribing-to-events) so Composio knows which URL to deliver events to. One-time per project.
-</Step>
-<Step>
-**Pick a trigger type and inspect it.** Find the trigger type for the event you want (e.g. `GITHUB_COMMIT_EVENT`) and inspect it — the response tells you what config it needs and whether a webhook endpoint must be configured first.
-</Step>
-<Step>
-**If the trigger requires a webhook endpoint, configure it.** Follow [Configuring the webhook endpoint](/docs/setting-up-triggers/creating-triggers#configuring-the-webhook-endpoint). One-time per OAuth app.
-</Step>
-<Step>
-**Create the trigger** scoped to a user's connected account — see [Creating triggers](/docs/setting-up-triggers/creating-triggers).
-</Step>
-<Step>
-**Receive events** at your subscription URL, [verify the signature](/docs/webhook-verification), and route on `metadata.trigger_slug`.
-</Step>
-<Step>
-**Manage** triggers as needed — see [Managing triggers](/docs/setting-up-triggers/managing-triggers).
-</Step>
-</Steps>
+If you bring your own OAuth app for a webhook trigger, you may need to register the Composio-issued ingress URL with the provider once per OAuth app so events can flow into Composio — see [Configuring the webhook endpoint](/docs/setting-up-triggers/creating-triggers#configuring-the-webhook-endpoint) on the Creating triggers page. Composio handles this for you in most cases.
 
 <Accordions>
 <Accordion title="What is a trigger type?">
