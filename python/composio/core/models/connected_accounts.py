@@ -74,14 +74,20 @@ class ConnectionRequest(Resource):
         """
         timeout = self.DEFAULT_WAIT_TIMEOUT if timeout is None else timeout
         deadline = time.time() + timeout
+        # Mirror the TS contract (`ConnectionRequest.ts` `terminalErrorStates`):
+        # FAILED / EXPIRED / REVOKED are terminal — credentials are gone and
+        # cannot transition back to ACTIVE without a fresh auth flow, so
+        # polling until timeout is wasted wall-clock time.
+        # INACTIVE is intentionally NOT terminal: it means "user disabled, can
+        # be reactivated", and a connection can briefly transit through it
+        # before settling on ACTIVE — failing fast there would regress callers.
+        terminal_states = ("FAILED", "EXPIRED", "REVOKED")
         while deadline > time.time():
             connection = self._client.connected_accounts.retrieve(nanoid=self.id)
             self.status = connection.status
             if self.status == "ACTIVE":
                 return connection
-            # Fail fast on terminal non-ACTIVE states (FAILED / EXPIRED /
-            # INACTIVE / REVOKED) instead of polling until timeout.
-            if self.status in ("FAILED", "EXPIRED", "INACTIVE", "REVOKED"):
+            if self.status in terminal_states:
                 raise exceptions.SDKError(
                     message=(
                         f"Connection {self.id} entered terminal state "
