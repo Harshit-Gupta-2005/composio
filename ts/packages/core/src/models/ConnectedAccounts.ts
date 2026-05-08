@@ -7,6 +7,7 @@
  */
 import ComposioClient, { BadRequestError } from '@composio/client';
 import {
+  ConnectedAccountCreateResponse,
   ConnectedAccountDeleteResponse,
   ConnectedAccountRefreshParams,
   ConnectedAccountRefreshResponse,
@@ -44,11 +45,6 @@ import {
 } from '../errors';
 import logger from '../utils/logger';
 import { ConnectionData } from '../types/connectedAccountAuthStates.types';
-
-// Schemes that take the redirectable OAuth path on the legacy
-// `POST /api/v3/connected_accounts` endpoint, and so are subject to the
-// 2026-05-08 / 2026-07-03 retirement when the auth config is Composio-managed.
-const LEGACY_RETIRING_OAUTH_SCHEMES = new Set(['OAUTH1', 'OAUTH2', 'DCR_OAUTH']);
 
 // One-time-per-process guard so long-running services don't spam the deprecation
 // warning on every initiate() call.
@@ -232,9 +228,34 @@ export class ConnectedAccounts {
       },
     };
 
-    let response;
+    let response: ConnectedAccountCreateResponse;
+    let httpResponse: Response | undefined;
     try {
-      response = await this.client.connectedAccounts.create(createParams);
+      // Chain `.withResponse()` so we can read the SEC-339 `Deprecation`
+      // header (RFC 9745) the apollo retiring branch sets — that header is
+      // emitted only when the auth config is Composio-managed AND on a
+      // redirectable OAuth scheme, so it's the canonical signal that this
+      // caller needs to migrate. Custom auth configs and non-OAuth schemes
+      // never see the header, eliminating the false-positive warning that
+      // an `auth_scheme`-only check produced for `link()`-unaffected callers.
+      const apiCall = this.client.connectedAccounts.create(createParams);
+      if (typeof (apiCall as { withResponse?: unknown }).withResponse === 'function') {
+        const resolved = await (
+          apiCall as unknown as {
+            withResponse: () => Promise<{
+              data: ConnectedAccountCreateResponse;
+              response: Response;
+            }>;
+          }
+        ).withResponse();
+        response = resolved.data;
+        httpResponse = resolved.response;
+      } else {
+        // Test mocks may return a plain Promise without `withResponse`.
+        // Fall back to a naked await; the deprecation gate below stays
+        // off in that case (no header to read).
+        response = await apiCall;
+      }
     } catch (error) {
       // When the server has flipped this org to the retired path, the legacy
       // endpoint returns 400 with a stable migration message. Surface it as
@@ -253,25 +274,17 @@ export class ConnectedAccounts {
       throw error;
     }
 
-    // Warn once per process when a successful initiate() lands on the
-    // redirectable-OAuth path. We can't tell from the response alone whether
-    // the auth config is Composio-managed (the field that determines whether
-    // the cutover applies), so the warning text is conditional in wording —
-    // custom-OAuth users can ignore it, Composio-managed-OAuth users see a
-    // clear pointer to link() before their org's cutover lands.
-    const responseAuthScheme = response.connectionData?.authScheme;
-    if (
-      !_legacyInitiateWarningEmitted &&
-      typeof responseAuthScheme === 'string' &&
-      LEGACY_RETIRING_OAUTH_SCHEMES.has(responseAuthScheme)
-    ) {
+    // Warn once per process when apollo flags this response as on the
+    // retiring path. Header presence is a 1:1 signal — custom auth configs
+    // and non-OAuth schemes get a clean response and stay silent, fixing
+    // the false-positive that auth_scheme-based detection produced.
+    if (!_legacyInitiateWarningEmitted && httpResponse?.headers.get('Deprecation')) {
       _legacyInitiateWarningEmitted = true;
       logger.warn(
         '[Deprecation] composio.connectedAccounts.initiate() will stop ' +
-          'working for Composio-managed OAuth auth configs on 2026-05-08 ' +
-          '(new orgs) and 2026-07-03 (all orgs). If this auth config is ' +
-          'Composio-managed, switch to composio.connectedAccounts.link() ' +
-          'before then. Custom auth configs are unaffected. See ' +
+          'working for this auth config on or before 2026-07-03 (see Sunset ' +
+          'header on the response). Switch to composio.connectedAccounts.link() — ' +
+          'same return shape, same allowMultiple semantics. ' +
           'https://docs.composio.dev/docs/changelog/2026/04/24'
       );
     }

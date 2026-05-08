@@ -1,5 +1,6 @@
 import logging
 import time
+import warnings
 from unittest.mock import Mock, patch
 
 import pytest
@@ -11,6 +12,22 @@ from composio.core.models.connected_accounts import (
     ConnectedAccounts,
     ConnectionRequest,
 )
+
+
+def _set_initiate_response(mock_client, body, headers=None):
+    """SEC-339: route an `initiate()` mock response through the
+    ``with_raw_response.create`` surface that the SDK consumes for
+    deprecation-header gating.
+
+    ``headers`` defaults to ``None`` (no Deprecation header → no warning,
+    matching custom-auth-config / non-OAuth-scheme behavior). Pass
+    ``{"Deprecation": "@..."}`` to simulate the apollo retiring branch.
+    """
+    raw = Mock()
+    raw.parse.return_value = body
+    raw.headers = headers or {}
+    mock_client.connected_accounts.with_raw_response.create.return_value = raw
+    return raw
 
 
 class TestAuthScheme:
@@ -322,7 +339,7 @@ class TestConnectedAccounts:
         mock_response.id = "conn-123"
         mock_response.connection_data.val.status = "PENDING"
         mock_response.connection_data.val.redirect_url = "https://redirect"
-        mock_client.connected_accounts.create.return_value = mock_response
+        _set_initiate_response(mock_client, mock_response)
 
         connected_accounts.initiate(user_id="user-1", auth_config_id="auth-1")
 
@@ -342,7 +359,7 @@ class TestConnectedAccounts:
         mock_response.id = "conn-123"
         mock_response.connection_data.val.status = "PENDING"
         mock_response.connection_data.val.redirect_url = "https://redirect"
-        mock_client.connected_accounts.create.return_value = mock_response
+        _set_initiate_response(mock_client, mock_response)
 
         config = {
             "auth_scheme": "API_KEY",
@@ -361,7 +378,9 @@ class TestConnectedAccounts:
         mock_client.connected_accounts.list.assert_called_once_with(
             user_ids=["user-1"], auth_config_ids=["auth-1"], statuses=["ACTIVE"]
         )
-        call_kwargs = mock_client.connected_accounts.create.call_args.kwargs
+        call_kwargs = (
+            mock_client.connected_accounts.with_raw_response.create.call_args.kwargs
+        )
         assert call_kwargs["auth_config"] == {"id": "auth-1"}
         assert call_kwargs["connection"]["user_id"] == "user-1"
         assert call_kwargs["connection"]["callback_url"] == "https://cb"
@@ -473,7 +492,7 @@ class TestConnectedAccounts:
         mock_response.id = "conn-active"
         mock_response.connection_data.val.status = "ACTIVE"
         mock_response.connection_data.val.redirect_url = None
-        mock_client.connected_accounts.create.return_value = mock_response
+        _set_initiate_response(mock_client, mock_response)
 
         scheme = AuthScheme()
         config = scheme.oauth2(
@@ -504,3 +523,110 @@ class TestConnectedAccounts:
         mock_from_id.assert_called_once_with(id="conn-123", client=mock_client)
         mock_request.wait_for_connection.assert_called_once_with(timeout=42.0)
         assert result == "connected"
+
+
+# SEC-339: initiate() must gate its DeprecationWarning on the response
+# `Deprecation` HTTP header (RFC 9745) that apollo emits only on the
+# retiring branch (Composio-managed + redirectable OAuth). These tests pin
+# that contract so the previous false-positive behavior — warning purely
+# off auth_scheme, which over-fired for custom auth configs — can't come
+# back. See https://docs.composio.dev/docs/changelog/2026/04/24
+class TestInitiateDeprecationHeaderGate:
+    @pytest.fixture
+    def mock_client(self):
+        client = Mock()
+        client.connected_accounts.list = Mock()
+        return client
+
+    @pytest.fixture(autouse=True)
+    def _reset_warning_flag(self):
+        """Reset the module-level one-time warning guard before each test
+        so warning emission is deterministic regardless of test order."""
+        import composio.core.models.connected_accounts as ca_mod
+
+        ca_mod._legacy_initiate_warning_emitted = False
+        yield
+        ca_mod._legacy_initiate_warning_emitted = False
+
+    @staticmethod
+    def _no_existing_accounts(mock_client):
+        empty = Mock()
+        empty.items = []
+        mock_client.connected_accounts.list.return_value = empty
+
+    @staticmethod
+    def _make_response():
+        body = Mock()
+        body.id = "conn-dep"
+        body.connection_data.val.status = "INITIATED"
+        body.connection_data.val.redirect_url = "https://redirect"
+        return body
+
+    def test_warns_once_when_response_carries_deprecation_header(self, mock_client):
+        """Managed + redirectable-OAuth path: apollo sets `Deprecation`,
+        SDK emits a `DeprecationWarning` pointing callers at link()."""
+        self._no_existing_accounts(mock_client)
+        body = self._make_response()
+        _set_initiate_response(
+            mock_client,
+            body,
+            headers={
+                "Deprecation": "@1776988800",
+                "Sunset": "Fri, 08 May 2026 00:00:00 GMT",
+                "Link": (
+                    "<https://docs.composio.dev/docs/changelog/2026/04/24>; "
+                    'rel="deprecation"'
+                ),
+            },
+        )
+
+        connected_accounts = ConnectedAccounts(client=mock_client)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            req = connected_accounts.initiate(user_id="user-1", auth_config_id="auth-1")
+
+        assert isinstance(req, ConnectionRequest)
+        deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
+        assert len(deprecations) == 1
+        message = str(deprecations[0].message)
+        assert "composio.connected_accounts.link()" in message
+        assert "2026-07-03" in message
+
+    def test_does_not_warn_when_response_has_no_deprecation_header(self, mock_client):
+        """Custom auth config / non-OAuth scheme: apollo returns a clean
+        response, SDK must stay silent. Regression for the prior
+        auth_scheme-only check that over-fired here."""
+        self._no_existing_accounts(mock_client)
+        _set_initiate_response(mock_client, self._make_response(), headers={})
+
+        connected_accounts = ConnectedAccounts(client=mock_client)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            connected_accounts.initiate(user_id="user-1", auth_config_id="auth-1")
+
+        deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
+        assert deprecations == []
+
+    def test_warns_at_most_once_per_process_across_calls(self, mock_client):
+        """The one-time guard must hold across multiple calls in the same
+        process even when each response carries the Deprecation header."""
+        self._no_existing_accounts(mock_client)
+        # Same headers for both calls; helper rewires the same return on
+        # each invocation, so both calls see the Deprecation header.
+        _set_initiate_response(
+            mock_client,
+            self._make_response(),
+            headers={"Deprecation": "@1776988800"},
+        )
+
+        connected_accounts = ConnectedAccounts(client=mock_client)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            connected_accounts.initiate(user_id="user-1", auth_config_id="auth-1")
+            empty = Mock()
+            empty.items = []
+            mock_client.connected_accounts.list.return_value = empty
+            connected_accounts.initiate(user_id="user-1", auth_config_id="auth-1")
+
+        deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
+        assert len(deprecations) == 1

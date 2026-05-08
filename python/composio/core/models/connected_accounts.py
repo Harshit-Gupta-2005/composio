@@ -23,11 +23,6 @@ from .base import Resource
 
 logger = logging.getLogger(__name__)
 
-# Schemes that take the redirectable OAuth path on the legacy
-# `POST /api/v3/connected_accounts` endpoint, and so are subject to the
-# 2026-05-08 / 2026-07-03 retirement when the auth config is Composio-managed.
-_LEGACY_RETIRING_OAUTH_SCHEMES = frozenset({"OAUTH1", "OAUTH2", "DCR_OAUTH"})
-
 # Mirrors TS `ConnectionRequest.ts:terminalErrorStates`. INACTIVE is excluded
 # on purpose — it can recover to ACTIVE.
 _TERMINAL_CONNECTION_STATES: t.FrozenSet[str] = frozenset(
@@ -478,13 +473,42 @@ class ConnectedAccounts:
         if alias is not None:
             connection["alias"] = alias
 
+        # Use `with_raw_response.create` so we can read the SEC-339
+        # `Deprecation` header (RFC 9745) the apollo retiring branch sets —
+        # that header is emitted only when the auth config is Composio-managed
+        # AND on a redirectable OAuth scheme, so it's the canonical signal
+        # that this caller needs to migrate. Custom auth configs and non-OAuth
+        # schemes never see the header, eliminating the false-positive warning
+        # that an auth_scheme-only check produced for link()-unaffected callers.
+        deprecation_header: t.Optional[str] = None
         try:
-            response = self._client.connected_accounts.create(
-                auth_config={"id": auth_config_id},
-                connection=t.cast(
-                    connected_account_create_params.Connection, connection
-                ),
+            ca_client = self._client.connected_accounts
+            raw_create = getattr(
+                getattr(ca_client, "with_raw_response", None), "create", None
             )
+            if callable(raw_create):
+                raw = raw_create(
+                    auth_config={"id": auth_config_id},
+                    connection=t.cast(
+                        connected_account_create_params.Connection, connection
+                    ),
+                )
+                response = raw.parse() if callable(getattr(raw, "parse", None)) else raw
+                headers = getattr(raw, "headers", None)
+                if headers is not None and hasattr(headers, "get"):
+                    value = headers.get("Deprecation") or headers.get("deprecation")
+                    if isinstance(value, str):
+                        deprecation_header = value
+            else:
+                # Test mocks may not stub `with_raw_response`. Fall back to
+                # the parsed-only path; the deprecation gate stays off (no
+                # header to read).
+                response = ca_client.create(
+                    auth_config={"id": auth_config_id},
+                    connection=t.cast(
+                        connected_account_create_params.Connection, connection
+                    ),
+                )
         except BadRequestError as error:
             # When the server has flipped this org to the retired path, the
             # legacy endpoint returns 400 with a stable migration message.
@@ -500,28 +524,20 @@ class ConnectedAccounts:
                 ) from error
             raise
 
-        # Warn once per process when a successful initiate() lands on the
-        # redirectable-OAuth path. We can't tell from the response alone
-        # whether the auth config is Composio-managed (the field that
-        # determines whether the cutover applies), so the warning text is
-        # conditional in wording — custom-OAuth users can ignore it,
-        # Composio-managed-OAuth users see a clear pointer to link() before
-        # their org's cutover lands.
+        # Warn once per process when apollo flags this response as on the
+        # retiring path. Header presence is a 1:1 signal — custom auth
+        # configs and non-OAuth schemes get a clean response and stay silent,
+        # fixing the false-positive that auth_scheme-based detection
+        # produced.
         global _legacy_initiate_warning_emitted
-        response_auth_scheme = getattr(response.connection_data, "auth_scheme", None)
-        if (
-            not _legacy_initiate_warning_emitted
-            and isinstance(response_auth_scheme, str)
-            and response_auth_scheme in _LEGACY_RETIRING_OAUTH_SCHEMES
-        ):
+        if not _legacy_initiate_warning_emitted and deprecation_header:
             _legacy_initiate_warning_emitted = True
             warnings.warn(
                 "composio.connected_accounts.initiate() will stop working "
-                "for Composio-managed OAuth auth configs on 2026-05-08 (new "
-                "orgs) and 2026-07-03 (all orgs). If this auth config is "
-                "Composio-managed, switch to "
-                "composio.connected_accounts.link() before then. Custom "
-                "auth configs are unaffected. See "
+                "for this auth config on or before 2026-07-03 (see Sunset "
+                "header on the response). Switch to "
+                "composio.connected_accounts.link() — same return shape, "
+                "same allow_multiple semantics. "
                 "https://docs.composio.dev/docs/changelog/2026/04/24",
                 DeprecationWarning,
                 stacklevel=2,
