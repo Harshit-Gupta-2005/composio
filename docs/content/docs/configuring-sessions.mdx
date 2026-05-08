@@ -394,7 +394,9 @@ const session = await composio.create("user_123", {
 </Tab>
 </Tabs>
 
-Only one account per toolkit is allowed when [multi-account mode](/docs/managing-multiple-connected-accounts) is disabled.
+<Callout type="info">
+Arrays are the preferred format for `connectedAccounts`. A single string (e.g. `"ca_work_gmail"`) is still accepted for backwards compatibility and is automatically coerced to a single-element array. Only one account per toolkit is allowed when [multi-account mode](/docs/managing-multiple-connected-accounts) is disabled.
+</Callout>
 
 ### Precedence
 
