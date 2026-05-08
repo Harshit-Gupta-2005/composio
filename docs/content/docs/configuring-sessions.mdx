@@ -24,7 +24,7 @@ const session = await composio.create("user_123");
 
 By default, a session has access to **all toolkits** in the Composio catalog. Your agent can discover and use any of them through `COMPOSIO_SEARCH_TOOLS`. Use the options below to restrict or customize what's available.
 
-For TypeScript sessions, you can also attach local experimental custom tools and custom toolkits that run in-process with Composio tools. See [Custom tools and toolkits](/docs/toolkits/custom-tools-and-toolkits).
+You can also attach local experimental custom tools and custom toolkits that run in-process alongside Composio tools. See [Custom tools and toolkits](/docs/toolkits/custom-tools-and-toolkits).
 
 ## Enabling toolkits
 
@@ -373,8 +373,8 @@ If a user has multiple connected accounts for the same toolkit, you can specify 
 session = composio.create(
     user_id="user_123",
     connected_accounts={
-        "gmail": "ca_work_gmail",
-        "github": "ca_personal_github"
+        "gmail": ["ca_work_gmail"],
+        "github": ["ca_personal_github"],
     }
 )
 ```
@@ -386,13 +386,17 @@ const composio = new Composio({ apiKey: 'your_api_key' });
 // ---cut---
 const session = await composio.create("user_123", {
   connectedAccounts: {
-    gmail: "ca_work_gmail",
-    github: "ca_personal_github",
+    gmail: ["ca_work_gmail"],
+    github: ["ca_personal_github"],
   },
 });
 ```
 </Tab>
 </Tabs>
+
+<Callout type="info">
+Arrays are the preferred format for `connectedAccounts`. A single string (e.g. `"ca_work_gmail"`) is still accepted for backwards compatibility and is automatically coerced to a single-element array. Only one account per toolkit is allowed when [multi-account mode](/docs/managing-multiple-connected-accounts) is disabled.
+</Callout>
 
 ### Precedence
 

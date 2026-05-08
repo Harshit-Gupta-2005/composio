@@ -636,6 +636,39 @@ custom_toolkits = session.custom_toolkits()
 </Tab>
 </Tabs>
 
+## Reusing a session with custom tools
+
+When [reusing a session](/docs/users-and-sessions#reusing-a-session) via `composio.use()`, you can attach custom tools at the same time:
+
+<Tabs groupId="language" items={['TypeScript', 'Python']} persist>
+<Tab value="TypeScript">
+```typescript
+import { Composio, experimental_createTool } from "@composio/core";
+import { z } from "zod/v3";
+
+declare const getUserProfile: ReturnType<typeof experimental_createTool>;
+const composio = new Composio({ apiKey: "your_api_key" });
+// ---cut---
+
+const session = await composio.use("session_id", {
+  customTools: [getUserProfile],
+});
+```
+</Tab>
+<Tab value="Python">
+```python
+from composio import Composio
+
+composio = Composio(api_key="your_api_key")
+
+session = composio.use(
+    "session_id",
+    custom_tools=[get_user_profile],
+)
+```
+</Tab>
+</Tabs>
+
 ## Programmatic execution
 
 Use `session.execute()` to run custom tools directly, outside of an agent loop. Custom tools execute in-process; remote tools are sent to the backend automatically.
