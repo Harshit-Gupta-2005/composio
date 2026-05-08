@@ -103,9 +103,11 @@ const toolkits = await session.toolkits();
 
 ## How sessions behave
 
-A session ties together a user, a set of available toolkits, auth configuration for those toolkits, and connected accounts. Call `create()` whenever you want to do a task. Each session is designed for a particular agentic task, and if you want to change the context of the task, create a new session.
+A session ties together a user, a set of available toolkits, auth configuration for those toolkits, and connected accounts. Each session is designed for a particular agentic task.
 
-You don't need to cache session IDs, manage session lifetimes, or worry about expiration. Sessions persist on the server and don't expire. Just call `create()` with what you need.
+Every call to `create()` returns a new session ID, even if the configuration is identical. This gives you clean isolation between tasks and makes it easy to trace activity back to a specific session in logs and analytics.
+
+Sessions persist on the server and don't expire. For multi-turn conversations, store the session ID and reuse it with `composio.use()` rather than calling `create()` again.
 
 ### Reusing a session
 
