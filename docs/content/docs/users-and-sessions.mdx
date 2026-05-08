@@ -137,7 +137,7 @@ Connections are tied to the user ID, not the session. A user who connected Gmail
 
 <Accordions>
 <Accordion title="When should I create a new session?">
-Create a new session when the config changes: different toolkits, different auth config, or a different connected account. For multi-turn conversations where the config stays the same, reuse the session with `composio.use()`.
+Reuse a session with `composio.use()` for multi-turn conversations. Create a new session when you need a fundamentally different setup (e.g., a different user or a completely different set of toolkits).
 </Accordion>
 </Accordions>
 
