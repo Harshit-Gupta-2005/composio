@@ -62,6 +62,7 @@ console.log(text);
 For multi-turn apps, create the session once and reuse it across requests with `composio.use()`:
 
 ```typescript
+// @noErrors
 import { anthropic } from "@ai-sdk/anthropic";
 import { Composio } from "@composio/core";
 import { VercelProvider } from "@composio/vercel";
@@ -75,8 +76,8 @@ const sessionId = session.sessionId;
 // store sessionId in your database or chat state
 
 // Subsequent requests — reuse the session
-const session2 = await composio.use(sessionId);
-const tools = await session2.tools();
+const session = await composio.use(sessionId);
+const tools = await session.tools();
 
 const { text } = await generateText({
   model: anthropic("claude-opus-4-6"),
