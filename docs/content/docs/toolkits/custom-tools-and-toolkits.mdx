@@ -537,8 +537,12 @@ console.log(tools.map((tool) => tool.name));
 from pydantic import BaseModel, Field
 
 from composio import Composio
+from composio_openai_agents import OpenAIAgentsProvider
 
-composio = Composio(api_key="your_api_key")
+composio = Composio(
+    api_key="your_api_key",
+    provider=OpenAIAgentsProvider(),
+)
 
 
 class ReplyGuideInput(BaseModel):
