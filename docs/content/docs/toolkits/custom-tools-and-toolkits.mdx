@@ -636,9 +636,9 @@ custom_toolkits = session.custom_toolkits()
 </Tab>
 </Tabs>
 
-## Attaching custom tools to an existing session
+## Reusing a session with custom tools
 
-Use `composio.use()` to rehydrate an existing session and attach custom tools to it. This is useful when you have a session ID from a previous `create()` call and want to bind custom tools in a different process or request.
+When [reusing a session](/docs/users-and-sessions#reusing-a-session) via `composio.use()`, you can attach custom tools at the same time:
 
 <Tabs groupId="language" items={['TypeScript', 'Python']} persist>
 <Tab value="TypeScript">
@@ -650,12 +650,9 @@ declare const getUserProfile: ReturnType<typeof experimental_createTool>;
 const composio = new Composio({ apiKey: "your_api_key" });
 // ---cut---
 
-// Rehydrate with custom tools
 const session = await composio.use("session_id", {
   customTools: [getUserProfile],
 });
-
-const tools = await session.tools();
 ```
 </Tab>
 <Tab value="Python">
@@ -664,32 +661,10 @@ from composio import Composio
 
 composio = Composio(api_key="your_api_key")
 
-# Rehydrate with custom tools
 session = composio.use(
     "session_id",
     custom_tools=[get_user_profile],
 )
-
-tools = session.tools()
-```
-</Tab>
-</Tabs>
-
-Without custom tools, `composio.use()` simply rehydrates the session:
-
-<Tabs groupId="language" items={['TypeScript', 'Python']} persist>
-<Tab value="TypeScript">
-```typescript
-import { Composio } from "@composio/core";
-const composio = new Composio({ apiKey: "your_api_key" });
-// ---cut---
-
-const session = await composio.use("session_id");
-```
-</Tab>
-<Tab value="Python">
-```python
-session = composio.use("session_id")
 ```
 </Tab>
 </Tabs>
