@@ -26,6 +26,7 @@ tools = session.tools()
 </Tab>
 <Tab value="TypeScript">
 ```typescript
+// @noErrors
 import { Composio } from '@composio/core';
 const composio = new Composio({ apiKey: 'your_api_key' });
 // ---cut---
@@ -34,8 +35,8 @@ const session = await composio.create("user_123");
 const sessionId = session.sessionId;
 
 // Subsequent requests
-const session2 = await composio.use(sessionId);
-const tools = await session2.tools();
+const session = await composio.use(sessionId);
+const tools = await session.tools();
 ```
 </Tab>
 </Tabs>
