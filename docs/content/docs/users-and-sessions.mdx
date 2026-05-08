@@ -131,7 +131,38 @@ const tools = await session.tools();
 </Tab>
 </Tabs>
 
-This returns the same session with the same toolkits, auth configs, and connected accounts. The session's configuration is fixed at creation — to change toolkits or auth, create a new session.
+This returns the same session with the same toolkits, auth configs, and connected accounts.
+
+### Updating a session
+
+Use `session.update()` to modify a session's configuration without creating a new one. Only the fields you pass are changed — everything else is preserved.
+
+<Tabs groupId="language" items={['Python', 'TypeScript']} persist>
+<Tab value="Python">
+```python
+session.update(
+    toolkits=["gmail", "slack"],
+    auth_configs={"gmail": "ac_new_config"},
+    connected_accounts={"slack": ["ca_work_slack"]},
+)
+```
+</Tab>
+<Tab value="TypeScript">
+```typescript
+import { Composio } from '@composio/core';
+const composio = new Composio({ apiKey: 'your_api_key' });
+const session = await composio.create("user_123");
+// ---cut---
+await session.update({
+  toolkits: ["gmail", "slack"],
+  authConfigs: { gmail: "ac_new_config" },
+  connectedAccounts: { slack: ["ca_work_slack"] },
+});
+```
+</Tab>
+</Tabs>
+
+You can update toolkits, auth configs, connected accounts, workbench settings, multi-account config, manage connections, tags, tools, and preload. See [Configuring Sessions](/docs/configuring-sessions) for the full list of options.
 
 ### Connected accounts persist across sessions
 
