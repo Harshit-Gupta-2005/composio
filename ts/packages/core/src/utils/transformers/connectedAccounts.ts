@@ -18,6 +18,13 @@ type RawConnectedAccountResponseWithLabels = (
 ) & {
   word_id?: string | null;
   alias?: string | null;
+  // account_type / ACL fields are added by Hermes #9860, #9882, #9902.
+  // Cast lives here until @composio/client regenerates against a backend
+  // spec that contains them.
+  account_type?: 'PRIVATE' | 'SHARED';
+  allow_all_users?: boolean;
+  allowed_user_ids?: string[];
+  not_allowed_user_ids?: string[];
 };
 
 /**
@@ -70,6 +77,14 @@ export function transformConnectedAccountResponse(
       createdAt: response.created_at,
       updatedAt: response.updated_at,
       testRequestEndpoint: response.test_request_endpoint,
+      accountType: responseWithLabels.account_type,
+      // ACL fields are conditionally visible — backend strips them for
+      // non-creator/non-API-key callers. Forward `undefined` when absent
+      // rather than synthesising defaults, so callers can distinguish "I
+      // can't see the ACL" from "ACL is empty".
+      allowAllUsers: responseWithLabels.allow_all_users,
+      allowedUserIds: responseWithLabels.allowed_user_ids,
+      notAllowedUserIds: responseWithLabels.not_allowed_user_ids,
     }));
 }
 

@@ -27,6 +27,60 @@ export type ConnectedAccountStatus =
   (typeof ConnectedAccountStatuses)[keyof typeof ConnectedAccountStatuses];
 export type ConnectedAccountStatusEnum = z.infer<typeof ConnectedAccountStatusSchema>;
 
+/**
+ * Sharing model for a connected account.
+ *
+ * - `PRIVATE` (default): only the owning `userId` can use the connection.
+ * - `SHARED`: reachable from a tool-router session by other users in the
+ *   project, but only when explicitly pinned in the session config and only
+ *   when the requesting `userId` passes the connection's ACL (see
+ *   `allowAllUsers` / `allowedUserIds` / `notAllowedUserIds`). Set at create
+ *   time only — cannot be changed later.
+ */
+export const ConnectedAccountTypes = {
+  PRIVATE: 'PRIVATE',
+  SHARED: 'SHARED',
+} as const;
+export const ConnectedAccountTypeSchema = z.enum([
+  ConnectedAccountTypes.PRIVATE,
+  ConnectedAccountTypes.SHARED,
+]);
+export type ConnectedAccountType =
+  (typeof ConnectedAccountTypes)[keyof typeof ConnectedAccountTypes];
+
+/**
+ * Per-user access control for a SHARED connected account. Inert for PRIVATE.
+ *
+ * Resolution rule (deny wins):
+ *   1. requesting userId in `notAllowedUserIds` → DENY
+ *   2. `allowAllUsers === true`                 → ALLOW
+ *   3. requesting userId in `allowedUserIds`    → ALLOW
+ *   4. otherwise                                → DENY  (deny-by-default)
+ *
+ * Default state (`allowAllUsers=false`, both arrays empty) means only the
+ * connection's creator can use it. The creator must grant access explicitly.
+ *
+ * Lists are capped at 1000 entries each by the backend.
+ */
+const ACL_LIST_LIMIT = 1000;
+export const ConnectedAccountAclSchema = z.object({
+  allowAllUsers: z
+    .boolean()
+    .optional()
+    .describe('Wildcard "any user_id in the project" allow toggle. Default false.'),
+  allowedUserIds: z
+    .array(z.string())
+    .max(ACL_LIST_LIMIT)
+    .optional()
+    .describe('Explicit allow list (developer-assigned user_id strings). Default [].'),
+  notAllowedUserIds: z
+    .array(z.string())
+    .max(ACL_LIST_LIMIT)
+    .optional()
+    .describe('Explicit deny list. Wins over allow on conflict. Default [].'),
+});
+export type ConnectedAccountAcl = z.infer<typeof ConnectedAccountAclSchema>;
+
 export const CreateConnectedAccountParamsSchema = z.object({
   authConfig: z.object({
     id: z.string(),
@@ -108,6 +162,10 @@ export const ConnectedAccountRetrieveResponseSchema: z.ZodType<{
   isDisabled: boolean;
   createdAt: string;
   updatedAt: string;
+  accountType?: ConnectedAccountType;
+  allowAllUsers?: boolean;
+  allowedUserIds?: string[];
+  notAllowedUserIds?: string[];
 }> = z.object({
   id: z.string(),
   authConfig: ConnectedAccountAuthConfigSchema,
@@ -131,6 +189,13 @@ export const ConnectedAccountRetrieveResponseSchema: z.ZodType<{
   isDisabled: z.boolean(),
   createdAt: z.string(),
   updatedAt: z.string(),
+  accountType: ConnectedAccountTypeSchema.optional(),
+  // ACL fields are only present on responses when the caller is the creator
+  // or is using a project/org API key — cookie callers who can use the
+  // connection but aren't its creator see the row without these fields.
+  allowAllUsers: z.boolean().optional(),
+  allowedUserIds: z.array(z.string()).optional(),
+  notAllowedUserIds: z.array(z.string()).optional(),
 });
 
 export type ConnectedAccountRetrieveResponse = z.infer<
@@ -205,6 +270,25 @@ export const CreateConnectedAccountLinkOptionsSchema = z.object({
    * `multiAccount` config to disambiguate at execution time.
    */
   allowMultiple: z.boolean().optional(),
+  /**
+   * Sharing model for the new connection. `PRIVATE` (default) is usable only by
+   * the owning `userId`. `SHARED` is reachable from a tool-router session by
+   * other users in the project — but only when explicitly pinned and only when
+   * the requesting `userId` passes the connection's ACL. Set at create time
+   * only.
+   */
+  accountType: ConnectedAccountTypeSchema.optional(),
+  /**
+   * ACL for SHARED connections. Ignored when `accountType !== 'SHARED'`; the
+   * backend rejects ACL fields on a `PRIVATE` connection with `AclOnlyForShared`.
+   *
+   * Default (deny-by-default): only the creator can use the connection. Grant
+   * access by setting `allowAllUsers: true` or by listing user IDs in
+   * `allowedUserIds`. `notAllowedUserIds` always wins over allow.
+   */
+  allowAllUsers: ConnectedAccountAclSchema.shape.allowAllUsers,
+  allowedUserIds: ConnectedAccountAclSchema.shape.allowedUserIds,
+  notAllowedUserIds: ConnectedAccountAclSchema.shape.notAllowedUserIds,
 });
 export type CreateConnectedAccountLinkOptions = z.infer<
   typeof CreateConnectedAccountLinkOptionsSchema
@@ -229,3 +313,25 @@ export type { ConnectedAccountUpdateStatusParams as UpdateConnectedAccountParams
 export const UpdateConnectedAccountParamsSchema = z.object({
   enabled: z.boolean(),
 });
+
+/**
+ * Params for `composio.connectedAccounts.updateAcl()`.
+ *
+ * PATCH-style semantics — omit a field to leave it unchanged; pass an empty
+ * array to clear an allow/deny list. Backend rejects ACL writes on a
+ * `PRIVATE` connection with `AclOnlyForShared` (400).
+ *
+ * Each field is optional, but at least one must be provided — passing an
+ * empty object is rejected as a no-op.
+ */
+export const UpdateConnectedAccountAclParamsSchema = ConnectedAccountAclSchema.refine(
+  acl =>
+    acl.allowAllUsers !== undefined ||
+    acl.allowedUserIds !== undefined ||
+    acl.notAllowedUserIds !== undefined,
+  {
+    message:
+      'At least one of allowAllUsers, allowedUserIds, or notAllowedUserIds must be provided',
+  }
+);
+export type UpdateConnectedAccountAclParams = z.infer<typeof UpdateConnectedAccountAclParamsSchema>;

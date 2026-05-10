@@ -29,6 +29,8 @@ import {
   ConnectedAccountRefreshOptionsSchema,
   UpdateConnectedAccountParams,
   UpdateConnectedAccountParamsSchema,
+  UpdateConnectedAccountAclParams,
+  UpdateConnectedAccountAclParamsSchema,
 } from '../types/connectedAccounts.types';
 import { ConnectionRequest } from '../types/connectionRequest.types';
 import { createConnectionRequest } from './ConnectionRequest';
@@ -49,6 +51,33 @@ import { ConnectionData } from '../types/connectedAccountAuthStates.types';
 // One-time-per-process guard so long-running services don't spam the deprecation
 // warning on every initiate() call.
 let _legacyInitiateWarningEmitted = false;
+
+// Wire-level fields added by Hermes #9860 / #9882 (account_type) and #9902
+// (ACL). Once @composio/client is regenerated against a backend spec that
+// includes these, this local extension can be removed and we can rely on the
+// generated `LinkCreateParams` directly.
+type LinkCreateBodyWithAcl = ConnectedAccountCreateParamsRaw extends never
+  ? never
+  : Record<string, unknown> & {
+      auth_config_id: string;
+      user_id: string;
+      alias?: string;
+      callback_url?: string;
+      account_type?: 'PRIVATE' | 'SHARED';
+      allow_all_users?: boolean;
+      allowed_user_ids?: string[];
+      not_allowed_user_ids?: string[];
+    };
+
+// Wire-level body for PATCH /connected_accounts/{id} with ACL fields
+// (Hermes #9902). Mirrors the same forward-compat pattern as
+// `LinkCreateBodyWithAcl` above.
+type ConnectedAccountPatchBodyWithAcl = {
+  alias?: string;
+  allow_all_users?: boolean;
+  allowed_user_ids?: string[];
+  not_allowed_user_ids?: string[];
+};
 
 /**
  * ConnectedAccounts class
@@ -366,13 +395,26 @@ export class ConnectedAccounts {
       );
     }
 
+    const opts = requestOptions.data;
+    const body: LinkCreateBodyWithAcl = {
+      auth_config_id: authConfigId,
+      user_id: userId,
+      ...(opts.callbackUrl && { callback_url: opts.callbackUrl }),
+      ...(opts.alias != null && { alias: opts.alias }),
+      ...(opts.accountType !== undefined && { account_type: opts.accountType }),
+      ...(opts.allowAllUsers !== undefined && { allow_all_users: opts.allowAllUsers }),
+      ...(opts.allowedUserIds !== undefined && { allowed_user_ids: opts.allowedUserIds }),
+      ...(opts.notAllowedUserIds !== undefined && {
+        not_allowed_user_ids: opts.notAllowedUserIds,
+      }),
+    };
+
     try {
-      const response = await this.client.link.create({
-        auth_config_id: authConfigId,
-        user_id: userId,
-        ...(requestOptions?.data.callbackUrl && { callback_url: requestOptions.data.callbackUrl }),
-        ...(requestOptions?.data.alias != null && { alias: requestOptions.data.alias }),
-      });
+      // Cast retained until @composio/client adds account_type / ACL fields
+      // to LinkCreateParams.
+      const response = await this.client.link.create(body as unknown as Parameters<
+        typeof this.client.link.create
+      >[0]);
 
       const connectionRequest = createConnectionRequest(
         this.client,
@@ -593,5 +635,70 @@ export class ConnectedAccounts {
     }
 
     return this.client.connectedAccounts.updateStatus(nanoid, parsedParams.data);
+  }
+
+  /**
+   * Update the per-user ACL on a SHARED connected account.
+   *
+   * Only meaningful for SHARED connections — the backend rejects ACL writes
+   * on PRIVATE rows with `ComposioAclOnlyForSharedError` (400). Auth gate is
+   * creator-or-API-key (a non-creator project member updating an alias on a
+   * SHARED row still works via {@link update}, but ACL writes do not).
+   *
+   * PATCH semantics: omit a field to leave it unchanged; pass an empty array
+   * to clear an allow/deny list. At least one field must be provided.
+   *
+   * Resolution rule (deny wins):
+   *   1. requesting userId in `notAllowedUserIds` → DENY
+   *   2. `allowAllUsers === true`                 → ALLOW
+   *   3. requesting userId in `allowedUserIds`    → ALLOW
+   *   4. otherwise                                → DENY
+   *
+   * @example
+   * ```typescript
+   * // Open access to everyone in the project
+   * await composio.connectedAccounts.updateAcl('ca_abc', { allowAllUsers: true });
+   *
+   * // Everyone except a specific user
+   * await composio.connectedAccounts.updateAcl('ca_abc', {
+   *   allowAllUsers: true,
+   *   notAllowedUserIds: ['user_bob'],
+   * });
+   *
+   * // Targeted allow
+   * await composio.connectedAccounts.updateAcl('ca_abc', {
+   *   allowedUserIds: ['user_alice', 'user_bob'],
+   * });
+   *
+   * // Revoke a previously-granted allow list (back to deny-by-default)
+   * await composio.connectedAccounts.updateAcl('ca_abc', { allowedUserIds: [] });
+   * ```
+   */
+  async updateAcl(nanoid: string, params: UpdateConnectedAccountAclParams): Promise<void> {
+    const parsedParams = UpdateConnectedAccountAclParamsSchema.safeParse(params);
+    if (!parsedParams.success) {
+      throw new ValidationError('Failed to parse connected account ACL update params', {
+        cause: parsedParams.error,
+      });
+    }
+
+    const body: ConnectedAccountPatchBodyWithAcl = {
+      ...(parsedParams.data.allowAllUsers !== undefined && {
+        allow_all_users: parsedParams.data.allowAllUsers,
+      }),
+      ...(parsedParams.data.allowedUserIds !== undefined && {
+        allowed_user_ids: parsedParams.data.allowedUserIds,
+      }),
+      ...(parsedParams.data.notAllowedUserIds !== undefined && {
+        not_allowed_user_ids: parsedParams.data.notAllowedUserIds,
+      }),
+    };
+
+    // Cast retained until @composio/client adds ACL fields to
+    // ConnectedAccountPatchParams.
+    await this.client.connectedAccounts.patch(
+      nanoid,
+      body as unknown as Parameters<typeof this.client.connectedAccounts.patch>[1]
+    );
   }
 }
