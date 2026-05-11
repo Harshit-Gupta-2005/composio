@@ -17,6 +17,7 @@ from composio.client.types import (
     connected_account_patch_response,
     connected_account_retrieve_response,
     connected_account_update_status_response,
+    link_create_params,
 )
 
 from .base import Resource
@@ -558,6 +559,8 @@ class ConnectedAccounts:
         callback_url: t.Optional[str] = None,
         alias: t.Optional[str] = None,
         allow_multiple: bool = False,
+        account_type: t.Optional[t.Literal["PRIVATE", "SHARED"]] = None,
+        acl_config_for_shared: t.Optional[link_create_params.ACLConfigForShared] = None,
     ) -> ConnectionRequest:
         """
         Create a Composio Connect Link for a user to connect their account to a given auth config.
@@ -574,6 +577,17 @@ class ConnectedAccounts:
             ``ComposioMultipleConnectedAccountsError`` if the user already has an
             ``ACTIVE`` connection on this auth config. Pair with ``alias`` and a
             session-level ``multi_account`` config to disambiguate at execution time.
+        :param account_type: Sharing model for the new connection. ``PRIVATE``
+            (default) is usable only by the owning ``user_id``. ``SHARED`` is
+            reachable from a tool-router session by other users in the project,
+            but only when explicitly pinned and only when the requesting
+            ``user_id`` passes the connection's ACL. Set at create time only.
+        :param acl_config_for_shared: Per-user ACL for SHARED connections. Only
+            valid when ``account_type == 'SHARED'`` — the backend rejects ACL
+            on a PRIVATE connection with ``ComposioAclOnlyForSharedError``
+            (400). Pass an ``ACLConfigForShared`` dict with any combination of
+            ``allow_all_users``, ``allowed_user_ids``, ``not_allowed_user_ids``.
+            Omit to keep deny-by-default (only the creator can use).
         :return: Connection request object.
 
         Example:
@@ -597,6 +611,17 @@ class ConnectedAccounts:
 
             # Wait for the connection to be established
             connected_account = composio.connected_accounts.wait_for_connection(connection_request.id)
+
+        Example creating a SHARED connection with an ACL:
+            connection_request = composio.connected_accounts.link(
+                'user_creator',
+                'auth_config_123',
+                account_type='SHARED',
+                acl_config_for_shared={
+                    'allow_all_users': True,
+                    'not_allowed_user_ids': ['user_bob'],
+                },
+            )
         """
         # Mirror ``initiate()``: guard against silently creating extra
         # connections on the same auth config.
@@ -615,12 +640,25 @@ class ConnectedAccounts:
                 auth_config_id,
             )
 
-        response = self._client.link.create(
-            auth_config_id=auth_config_id,
-            user_id=user_id,
-            callback_url=callback_url if callback_url is not None else omit,
-            alias=alias if alias is not None else omit,
-        )
+        try:
+            response = self._client.link.create(
+                auth_config_id=auth_config_id,
+                user_id=user_id,
+                callback_url=callback_url if callback_url is not None else omit,
+                alias=alias if alias is not None else omit,
+                account_type=account_type if account_type is not None else omit,
+                acl_config_for_shared=(
+                    acl_config_for_shared if acl_config_for_shared is not None else omit
+                ),
+            )
+        except BadRequestError as error:
+            # Backend rejects ACL on PRIVATE rows with 400 +
+            # ``ConnectedAccount_AclOnlyForShared``. Surface it as a typed
+            # error so callers can ``except`` instead of grepping messages.
+            message = str(error)
+            if "acl_config_for_shared is only valid on SHARED" in message:
+                raise exceptions.ComposioAclOnlyForSharedError(message) from error
+            raise
 
         return ConnectionRequest(
             id=response.connected_account_id,
@@ -628,6 +666,96 @@ class ConnectedAccounts:
             redirect_url=getattr(response, "redirect_url", None),
             client=self._client,
         )
+
+    def update_acl(
+        self,
+        nanoid: str,
+        *,
+        allow_all_users: t.Optional[bool] = None,
+        allowed_user_ids: t.Optional[t.List[str]] = None,
+        not_allowed_user_ids: t.Optional[t.List[str]] = None,
+    ) -> connected_account_patch_response.ConnectedAccountPatchResponse:
+        """
+        Update the per-user ACL on a SHARED connected account.
+
+        Only meaningful for SHARED connections — the backend rejects ACL
+        writes on PRIVATE rows with ``ComposioAclOnlyForSharedError`` (400).
+        Auth gate is creator-or-API-key (a non-creator project member
+        updating an alias on a SHARED row still works via :meth:`update`,
+        but ACL writes do not).
+
+        PATCH semantics: omit a parameter to leave it unchanged; pass an
+        empty list to clear an allow/deny list. At least one parameter must
+        be provided — calling with all three as ``None`` raises
+        :class:`composio.exceptions.ValidationError`.
+
+        Resolution rule (deny wins):
+          1. requesting user_id in ``not_allowed_user_ids`` → DENY
+          2. ``allow_all_users == True``                    → ALLOW
+          3. requesting user_id in ``allowed_user_ids``     → ALLOW
+          4. otherwise                                      → DENY
+
+        :param nanoid: The connected account ID (``ca_xxx``).
+        :param allow_all_users: Wildcard "any user_id in the project" allow.
+        :param allowed_user_ids: Explicit allow list. Pass ``[]`` to clear.
+        :param not_allowed_user_ids: Explicit deny list (wins over allow on
+            conflict). Pass ``[]`` to clear — note that clearing the deny
+            list silently re-grants access to previously-blocked users.
+        :return: PATCH response (``id``, ``status``, ``success``). To read
+            back the updated ``acl_config_for_shared`` block, call
+            :meth:`get` after this returns.
+
+        Example::
+
+            # Open access to everyone in the project
+            composio.connected_accounts.update_acl('ca_abc', allow_all_users=True)
+
+            # Everyone except a specific user
+            composio.connected_accounts.update_acl(
+                'ca_abc',
+                allow_all_users=True,
+                not_allowed_user_ids=['user_bob'],
+            )
+
+            # Targeted allow
+            composio.connected_accounts.update_acl(
+                'ca_abc',
+                allowed_user_ids=['user_alice', 'user_bob'],
+            )
+
+            # Revoke a previously-granted allow list (back to deny-by-default)
+            composio.connected_accounts.update_acl('ca_abc', allowed_user_ids=[])
+        """
+        if (
+            allow_all_users is None
+            and allowed_user_ids is None
+            and not_allowed_user_ids is None
+        ):
+            raise exceptions.ValidationError(
+                "update_acl requires at least one of allow_all_users, "
+                "allowed_user_ids, or not_allowed_user_ids"
+            )
+
+        acl: t.Dict[str, t.Any] = {}
+        if allow_all_users is not None:
+            acl["allow_all_users"] = allow_all_users
+        if allowed_user_ids is not None:
+            acl["allowed_user_ids"] = allowed_user_ids
+        if not_allowed_user_ids is not None:
+            acl["not_allowed_user_ids"] = not_allowed_user_ids
+
+        try:
+            return self._client.connected_accounts.patch(
+                nanoid,
+                acl_config_for_shared=t.cast(
+                    connected_account_patch_params.ACLConfigForShared, acl
+                ),
+            )
+        except BadRequestError as error:
+            message = str(error)
+            if "acl_config_for_shared is only valid on SHARED" in message:
+                raise exceptions.ComposioAclOnlyForSharedError(message) from error
+            raise
 
     def wait_for_connection(
         self,
