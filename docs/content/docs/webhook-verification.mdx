@@ -11,7 +11,7 @@ Composio signs every webhook request. Always verify signatures in production to 
 The SDK handles signature verification, payload parsing, and version detection (V1, V2, V3).
 
 <Callout>
-Store the webhook secret securely as `COMPOSIO_WEBHOOK_SECRET`. You can fetch it from the [webhook subscription](/reference/api-reference/webhooks/getWebhookSubscriptionsById) at any time or [rotate it](/reference/api-reference/webhooks/postWebhookSubscriptionsByIdRotateSecret) if it leaks.
+Store the webhook secret securely as `COMPOSIO_WEBHOOK_SECRET`. You can fetch it from the [webhook subscription](/reference/api-reference/webhook-subscriptions/getWebhookSubscriptionsById) at any time or [rotate it](/reference/api-reference/webhook-subscriptions/postWebhookSubscriptionsByIdRotateSecret) if it leaks.
 </Callout>
 
 <Tabs groupId="language" items={['Python', 'TypeScript']} persist>
@@ -61,7 +61,7 @@ An optional `tolerance` parameter (default: `300` seconds) controls how old a we
 If you are not using the Composio SDK and want to verify signatures manually.
 
 <Callout>
-Store the webhook secret securely as `COMPOSIO_WEBHOOK_SECRET`. You can fetch it from the [webhook subscription](/reference/api-reference/webhooks/getWebhookSubscriptionsById) at any time or [rotate it](/reference/api-reference/webhooks/postWebhookSubscriptionsByIdRotateSecret) if it leaks.
+Store the webhook secret securely as `COMPOSIO_WEBHOOK_SECRET`. You can fetch it from the [webhook subscription](/reference/api-reference/webhook-subscriptions/getWebhookSubscriptionsById) at any time or [rotate it](/reference/api-reference/webhook-subscriptions/postWebhookSubscriptionsByIdRotateSecret) if it leaks.
 </Callout>
 
 Every webhook request includes three headers: `webhook-signature`, `webhook-id`, and `webhook-timestamp`. Use these along with the raw request body to verify the signature:
