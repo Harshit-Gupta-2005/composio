@@ -27,10 +27,13 @@ import { SessionMetaToolOptions } from '../types/modifiers.types';
 import { ConnectionRequest } from '../types/connectionRequest.types';
 import { createConnectionRequest } from './ConnectionRequest';
 import {
+  ConnectedAccountAclConfigSchema,
   ConnectedAccountStatuses,
   ConnectedAccountType,
+  ConnectedAccountTypeSchema,
   ConnectedAccountAclConfig,
 } from '../types/connectedAccounts.types';
+import { z } from 'zod/v3';
 import { transform } from '../utils/transform';
 import { ToolkitConnectionStateSchema } from '../types/toolRouter.types';
 import { ComposioAclOnlyForSharedError, ValidationError } from '../errors';
@@ -68,6 +71,21 @@ import { transformToolRouterUpdateParams } from '../lib/toolRouterParams';
 const COMPOSIO_MULTI_EXECUTE_TOOL = 'COMPOSIO_MULTI_EXECUTE_TOOL';
 export const DIRECT_CUSTOM_TOOL_DESCRIPTION_PREFIX =
   '[Direct tool - call directly, no search needed beforehand.]';
+
+/**
+ * Options accepted by {@link ToolRouterSession.authorize}.
+ *
+ * Validated at the SDK boundary so callers get clear `ValidationError`s for
+ * oversized ACL lists or invalid user IDs — same Zod caps as the equivalent
+ * `composio.connectedAccounts.link()` path (≤1000 entries per list, each
+ * user_id 1..256 chars). Caught Bugbot review.
+ */
+const AuthorizeOptionsSchema = z.object({
+  callbackUrl: z.string().optional(),
+  alias: z.string().optional(),
+  accountType: ConnectedAccountTypeSchema.optional(),
+  aclConfigForShared: ConnectedAccountAclConfigSchema.optional(),
+});
 
 export class ToolRouterSession<
   TToolCollection,
@@ -312,6 +330,12 @@ export class ToolRouterSession<
    * `accountType` and `aclConfigForShared` (Hermes #9860, #9902) let the
    * caller create a SHARED connection with a per-user ACL in one flow.
    * Default behaviour (omit both) creates a PRIVATE connection.
+   *
+   * `aclConfigForShared` is validated through `ConnectedAccountAclConfigSchema`
+   * — same Zod caps as `composio.connectedAccounts.link()` (≤1000 entries
+   * per list, each user_id 1..256 chars). Invalid input throws
+   * `ValidationError` at the SDK boundary instead of hitting an opaque
+   * backend 400.
    */
   async authorize(
     toolkit: string,
@@ -322,25 +346,32 @@ export class ToolRouterSession<
       aclConfigForShared?: ConnectedAccountAclConfig;
     }
   ): Promise<ConnectionRequest> {
+    const requestOptions = AuthorizeOptionsSchema.safeParse(options ?? {});
+    if (!requestOptions.success) {
+      throw new ValidationError('Failed to parse tool router authorize options', {
+        cause: requestOptions.error,
+      });
+    }
+    const opts = requestOptions.data;
     const aclWire: SessionLinkParams.ACLConfigForShared | undefined =
-      options?.aclConfigForShared === undefined
+      opts.aclConfigForShared === undefined
         ? undefined
         : {
-            ...(options.aclConfigForShared.allowAllUsers !== undefined && {
-              allow_all_users: options.aclConfigForShared.allowAllUsers,
+            ...(opts.aclConfigForShared.allowAllUsers !== undefined && {
+              allow_all_users: opts.aclConfigForShared.allowAllUsers,
             }),
-            ...(options.aclConfigForShared.allowedUserIds !== undefined && {
-              allowed_user_ids: options.aclConfigForShared.allowedUserIds,
+            ...(opts.aclConfigForShared.allowedUserIds !== undefined && {
+              allowed_user_ids: opts.aclConfigForShared.allowedUserIds,
             }),
-            ...(options.aclConfigForShared.notAllowedUserIds !== undefined && {
-              not_allowed_user_ids: options.aclConfigForShared.notAllowedUserIds,
+            ...(opts.aclConfigForShared.notAllowedUserIds !== undefined && {
+              not_allowed_user_ids: opts.aclConfigForShared.notAllowedUserIds,
             }),
           };
     const body: SessionLinkParams = {
       toolkit,
-      ...(options?.callbackUrl !== undefined && { callback_url: options.callbackUrl }),
-      ...(options?.alias !== undefined && { alias: options.alias }),
-      ...(options?.accountType !== undefined && { account_type: options.accountType }),
+      ...(opts.callbackUrl !== undefined && { callback_url: opts.callbackUrl }),
+      ...(opts.alias !== undefined && { alias: opts.alias }),
+      ...(opts.accountType !== undefined && { account_type: opts.accountType }),
       ...(aclWire !== undefined && { acl_config_for_shared: aclWire }),
     };
 

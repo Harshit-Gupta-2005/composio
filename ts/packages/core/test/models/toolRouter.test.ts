@@ -1848,6 +1848,72 @@ describe('ToolRouter', () => {
       expect(connectionRequest).toHaveProperty('toString');
       expect(typeof connectionRequest.waitForConnection).toBe('function');
     });
+
+    // Bugbot-flagged gap: authorize() was passing aclConfigForShared straight
+    // to the wire while link() validated through Zod. These tests pin the
+    // parity — same 1000-entry list cap, same 256-char user_id cap.
+    it('forwards accountType + nested acl_config_for_shared on the wire', async () => {
+      mockClient.toolRouter.session.link.mockResolvedValueOnce(mockLinkResponse);
+
+      const session = await toolRouter.create(userId);
+      await session.authorize(toolkit, {
+        accountType: 'SHARED',
+        aclConfigForShared: {
+          allowAllUsers: true,
+          notAllowedUserIds: ['user_bob'],
+        },
+      });
+
+      expect(mockClient.toolRouter.session.link).toHaveBeenCalledWith(sessionId, {
+        toolkit,
+        account_type: 'SHARED',
+        acl_config_for_shared: {
+          allow_all_users: true,
+          not_allowed_user_ids: ['user_bob'],
+        },
+      });
+    });
+
+    it('throws ValidationError when allowedUserIds exceeds the 1000-entry cap', async () => {
+      const session = await toolRouter.create(userId);
+      const oversizedList = Array.from({ length: 1001 }, (_, i) => `user_${i}`);
+
+      await expect(
+        session.authorize(toolkit, {
+          accountType: 'SHARED',
+          aclConfigForShared: { allowedUserIds: oversizedList },
+        })
+      ).rejects.toMatchObject({ name: 'ValidationError' });
+
+      expect(mockClient.toolRouter.session.link).not.toHaveBeenCalled();
+    });
+
+    it('throws ValidationError when a user_id exceeds the 256-char length cap', async () => {
+      const session = await toolRouter.create(userId);
+      const tooLongUserId = 'u'.repeat(257);
+
+      await expect(
+        session.authorize(toolkit, {
+          accountType: 'SHARED',
+          aclConfigForShared: { allowedUserIds: [tooLongUserId] },
+        })
+      ).rejects.toMatchObject({ name: 'ValidationError' });
+
+      expect(mockClient.toolRouter.session.link).not.toHaveBeenCalled();
+    });
+
+    it('throws ValidationError when a user_id is empty', async () => {
+      const session = await toolRouter.create(userId);
+
+      await expect(
+        session.authorize(toolkit, {
+          accountType: 'SHARED',
+          aclConfigForShared: { notAllowedUserIds: [''] },
+        })
+      ).rejects.toMatchObject({ name: 'ValidationError' });
+
+      expect(mockClient.toolRouter.session.link).not.toHaveBeenCalled();
+    });
   });
 
   describe('toolkits function', () => {
