@@ -41,7 +41,7 @@ Every inbound event is signature-checked at ingress before any trigger fires:
 **Sharing one OAuth app across projects?** Consolidate to a single project or register separate OAuth apps per project before continuing.
 </Callout>
 
-The walkthrough below uses Slack as the example. For setup notes specific to each toolkit, see its FAQ section — e.g., [Slack](/toolkits/slack), [Notion](/toolkits/notion).
+The walkthrough below uses Slack as the example and walks through the [Webhook Endpoints API](/reference/api-reference/webhooks/postWebhookEndpoints). For setup notes specific to each toolkit, see its FAQ section — e.g., [Slack](/toolkits/slack), [Notion](/toolkits/notion).
 
 ### Step 1: Discover what credentials the endpoint needs
 
@@ -75,8 +75,6 @@ Sample response:
 ```
 
 ### Step 2: Create the endpoint
-
-Call the [Webhook Endpoints API](/reference/api-reference/webhooks) with the toolkit slug and your OAuth `client_id`:
 
 ```bash
 curl -X POST "https://backend.composio.dev/api/v3.1/webhook_endpoints" \
