@@ -1521,7 +1521,7 @@ describe('ConnectedAccounts', () => {
     });
   });
 
-  describe('link with accountType + ACL (Hermes #9860, #9902)', () => {
+  describe('link with accountType + ACL', () => {
     beforeEach(() => {
       extendedMockClient.connectedAccounts.list.mockResolvedValue({
         items: [],

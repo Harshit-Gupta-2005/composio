@@ -60,12 +60,9 @@ export class ComposioFailedToCreateConnectedAccountLink extends ComposioError {
  * Thrown when a tool execution attempts to use a SHARED connected account
  * but the requesting `userId` is not allowed by the connection's ACL.
  *
- * Surfaces from the matching layer when a SHARED connection is reached
- * directly (e.g. via `composio.tools.execute(slug, { connectedAccountId })`)
- * without going through a tool-router session that already pre-flighted the
- * ACL at session-create time.
- *
- * Backend response: 403 with code `ConnectedAccount_SharedAccessDenied`.
+ * Surfaces when a SHARED connection is reached directly (e.g. via
+ * `composio.tools.execute(slug, { connectedAccountId })`) without going
+ * through a tool-router session.
  */
 export class ComposioSharedAccessDeniedError extends ComposioError {
   constructor(
@@ -86,11 +83,8 @@ export class ComposioSharedAccessDeniedError extends ComposioError {
 
 /**
  * Thrown when ACL fields (`allowAllUsers`, `allowedUserIds`,
- * `notAllowedUserIds`) are sent on a `PRIVATE` connection — at create time
- * or via PATCH. ACL is only meaningful for `SHARED` connections; the
- * matching layer never reads it for PRIVATE.
- *
- * Backend response: 400 with code `ConnectedAccount_AclOnlyForShared`.
+ * `notAllowedUserIds`) are sent on a `PRIVATE` connection — at create
+ * time or via PATCH. ACL is only meaningful for `SHARED` connections.
  */
 export class ComposioAclOnlyForSharedError extends ComposioError {
   constructor(
@@ -111,10 +105,8 @@ export class ComposioAclOnlyForSharedError extends ComposioError {
 
 /**
  * Thrown by tool-router session create / PATCH when the session's `userId`
- * cannot use a pinned SHARED connection — caught at session-create time so
- * the session never enters a state that 4xxs mid-execution.
- *
- * Backend response: 400 with code `ToolRouterV2_SharedConnectionNotAccessible`.
+ * cannot use a pinned SHARED connection — caught at session-create time
+ * so the session never enters a state that fails mid-execution.
  */
 export class ComposioSharedConnectionNotAccessibleError extends ComposioError {
   constructor(

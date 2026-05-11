@@ -31,11 +31,11 @@ export type ConnectedAccountStatusEnum = z.infer<typeof ConnectedAccountStatusSc
  * Sharing model for a connected account.
  *
  * - `PRIVATE` (default): only the owning `userId` can use the connection.
- * - `SHARED`: reachable from a tool-router session by other users in the
- *   project, but only when explicitly pinned in the session config and only
- *   when the requesting `userId` passes the connection's ACL (see
- *   `allowAllUsers` / `allowedUserIds` / `notAllowedUserIds`). Set at create
- *   time only — cannot be changed later.
+ * - `SHARED`: can be used by other `userId`s, but only when the connection
+ *   is explicitly pinned in a tool-router session's config and only when
+ *   the requesting `userId` passes the connection's ACL (see
+ *   `allowAllUsers` / `allowedUserIds` / `notAllowedUserIds`). Set at
+ *   creation time only — cannot be changed later.
  */
 export const ConnectedAccountTypes = {
   PRIVATE: 'PRIVATE',
@@ -49,24 +49,26 @@ export type ConnectedAccountType =
   (typeof ConnectedAccountTypes)[keyof typeof ConnectedAccountTypes];
 
 /**
- * Per-user access control for a SHARED connected account. Inert for PRIVATE.
+ * Per-user access control for a SHARED connected account. Ignored for
+ * PRIVATE.
  *
- * On the wire this lives under `acl_config_for_shared` — a single JSONB
- * column on `connected_accounts`. The SDK exposes the inner shape as
- * `aclConfigForShared` on inputs and responses (omit the block to mean
- * "don't touch ACL" on create / PATCH; absence on a response means the
- * caller isn't allowed to see the ACL).
+ * Pass `aclConfigForShared` on create / PATCH to grant access; omit it
+ * to leave the ACL unchanged (on PATCH) or to keep the default
+ * deny-by-default state (on create). On responses, the field is
+ * `undefined` when the caller isn't authorised to see the ACL —
+ * distinguish that from an empty/default state explicitly.
  *
  * Resolution rule (deny wins):
- *   1. requesting userId in `notAllowedUserIds` → DENY
- *   2. `allowAllUsers === true`                 → ALLOW
- *   3. requesting userId in `allowedUserIds`    → ALLOW
- *   4. otherwise                                → DENY  (deny-by-default)
+ *   1. requesting `userId` in `notAllowedUserIds` → DENY
+ *   2. `allowAllUsers === true`                   → ALLOW
+ *   3. requesting `userId` in `allowedUserIds`    → ALLOW
+ *   4. otherwise                                  → DENY  (deny-by-default)
  *
- * Default state (block omitted or `{}`) means only the connection's creator
- * can use it. The creator must grant access explicitly.
+ * Default state (block omitted or `{}`) means only the connection's
+ * creator can use it. The creator must grant access explicitly.
  *
- * Backend caps: each list ≤1000 entries; each user_id 1..256 chars.
+ * Limits: each list accepts up to 1000 entries; each `userId` is
+ * 1..256 characters.
  */
 const ACL_LIST_MAX_LENGTH = 1000;
 const ACL_USER_ID_MAX_LENGTH = 256;
@@ -76,24 +78,24 @@ export const ConnectedAccountAclConfigSchema = z.object({
   allowAllUsers: z
     .boolean()
     .optional()
-    .describe('Wildcard "any user_id in the project" allow toggle. Default false.'),
+    .describe('When true, any `userId` may use this SHARED connection (subject to the deny list). Default false.'),
   allowedUserIds: z
     .array(aclUserIdString)
     .max(ACL_LIST_MAX_LENGTH)
     .optional()
-    .describe('Explicit allow list (developer-assigned user_id strings). Default [].'),
+    .describe('Explicit list of `userId` strings allowed to use this SHARED connection. Default [].'),
   notAllowedUserIds: z
     .array(aclUserIdString)
     .max(ACL_LIST_MAX_LENGTH)
     .optional()
-    .describe('Explicit deny list. Wins over allow on conflict. Default [].'),
+    .describe('Explicit list of `userId` strings denied access. Wins over allow on conflict. Default [].'),
 });
 export type ConnectedAccountAclConfig = z.infer<typeof ConnectedAccountAclConfigSchema>;
 
 /**
- * Resolved ACL as it appears on responses (creator / API-key callers).
- * All three fields are populated when the block is visible; the block
- * itself is absent for non-creator cookie callers.
+ * Resolved ACL as it appears on responses. All three fields are populated
+ * when the field is visible; the field itself is `undefined` for callers
+ * not authorised to see it.
  */
 export const ConnectedAccountAclConfigResponseSchema = z.object({
   allowAllUsers: z.boolean(),
@@ -211,11 +213,11 @@ export const ConnectedAccountRetrieveResponseSchema: z.ZodType<{
   createdAt: z.string(),
   updatedAt: z.string(),
   accountType: ConnectedAccountTypeSchema.optional(),
-  // `acl_config_for_shared` is only present on responses when the caller is
-  // the connection's creator or is using a project/org API key. Non-creator
-  // cookie callers see the row without this block — left as `undefined`
-  // here so callers can distinguish "I can't see the ACL" from "ACL is the
-  // default deny-by-default state".
+  // `aclConfigForShared` is only present on the response when the caller
+  // is authorised to see the ACL — otherwise the block is absent and the
+  // field is `undefined`. Callers can distinguish "I can't see the ACL"
+  // from "ACL is the default deny-by-default state" by checking for the
+  // presence of the field.
   aclConfigForShared: ConnectedAccountAclConfigResponseSchema.optional(),
 });
 
@@ -292,11 +294,11 @@ export const CreateConnectedAccountLinkOptionsSchema = z.object({
    */
   allowMultiple: z.boolean().optional(),
   /**
-   * Sharing model for the new connection. `PRIVATE` (default) is usable only by
-   * the owning `userId`. `SHARED` is reachable from a tool-router session by
-   * other users in the project — but only when explicitly pinned and only when
-   * the requesting `userId` passes the connection's ACL. Set at create time
-   * only.
+   * Sharing model for the new connection. `PRIVATE` (default) is usable only
+   * by the owning `userId`. `SHARED` can be used by other `userId`s — but
+   * only when the connection is explicitly pinned in a tool-router session's
+   * config and only when the requesting `userId` passes the connection's
+   * ACL. Set at creation time only.
    */
   accountType: ConnectedAccountTypeSchema.optional(),
   /**

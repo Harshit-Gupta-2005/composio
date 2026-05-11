@@ -57,12 +57,12 @@ import { ConnectionData } from '../types/connectedAccountAuthStates.types';
 let _legacyInitiateWarningEmitted = false;
 
 /**
- * Serialise the SDK's `aclConfigForShared` (camelCase, top-level optional)
- * to the wire's `acl_config_for_shared` block. Returns `undefined` when the
- * caller didn't pass anything (PATCH-style "don't touch ACL"); returns
- * `{}` when the caller passed an explicit empty object (the backend treats
- * both the same way today — deny-by-default — but the explicit form is
- * preserved so the intent is visible in network traces).
+ * Serialise the SDK's `aclConfigForShared` (camelCase) to the wire's
+ * `acl_config_for_shared` block. Returns `undefined` when the caller
+ * didn't pass anything (PATCH-style "don't touch ACL"); returns `{}`
+ * when the caller passed an explicit empty object — both mean
+ * deny-by-default, but the explicit form preserves the caller's intent
+ * in network traces.
  */
 function serializeAclConfigForWire(
   acl:
@@ -419,9 +419,8 @@ export class ConnectedAccounts {
       );
       return connectionRequest;
     } catch (error) {
-      // Backend rejects ACL fields on PRIVATE connections with a 400 +
-      // `ConnectedAccount_AclOnlyForShared`. Surface it as a typed error so
-      // callers can `instanceof` instead of grepping messages.
+      // The server rejects ACL on PRIVATE connections — surface that as a
+      // typed error so callers can `instanceof` instead of grepping messages.
       if (
         error instanceof BadRequestError &&
         typeof error.message === 'string' &&
@@ -616,11 +615,9 @@ export class ConnectedAccounts {
   }
 
   /**
-   * Enable or disable a connected account (wraps the `/status` endpoint
-   * — accepts only `{ enabled: boolean }` despite the historical JSDoc
-   * mentioning "alias and/or credentials"). For ACL writes on SHARED
-   * connections, see {@link updateAcl}. Alias / credential PATCH isn't
-   * surfaced on the SDK yet.
+   * Enable or disable a connected account. Accepts `{ enabled: boolean }`.
+   *
+   * For ACL writes on SHARED connections, see {@link updateAcl}.
    *
    * @param {string} nanoid - The unique identifier of the connected account
    * @param {UpdateConnectedAccountParams} params - The update parameters
@@ -649,23 +646,23 @@ export class ConnectedAccounts {
   /**
    * Update the per-user ACL on a SHARED connected account.
    *
-   * Only meaningful for SHARED connections — the backend rejects ACL writes
-   * on PRIVATE rows with `ComposioAclOnlyForSharedError` (400). Auth gate is
-   * creator-or-API-key (a non-creator project member updating an alias on a
-   * SHARED row still works via {@link update}, but ACL writes do not).
+   * Only meaningful for SHARED connections — calling this on a PRIVATE
+   * connection raises `ComposioAclOnlyForSharedError` (400). ACL writes
+   * require the connection's creator or an API key; alias edits via
+   * {@link update} are governed separately.
    *
    * PATCH semantics: omit a field to leave it unchanged; pass an empty array
    * to clear an allow/deny list. At least one field must be provided.
    *
    * Resolution rule (deny wins):
-   *   1. requesting userId in `notAllowedUserIds` → DENY
-   *   2. `allowAllUsers === true`                 → ALLOW
-   *   3. requesting userId in `allowedUserIds`    → ALLOW
-   *   4. otherwise                                → DENY
+   *   1. requesting `userId` in `notAllowedUserIds` → DENY
+   *   2. `allowAllUsers === true`                   → ALLOW
+   *   3. requesting `userId` in `allowedUserIds`    → ALLOW
+   *   4. otherwise                                  → DENY
    *
    * @example
    * ```typescript
-   * // Open access to everyone in the project
+   * // Allow every userId to use this connection
    * await composio.connectedAccounts.updateAcl('ca_abc', { allowAllUsers: true });
    *
    * // Everyone except a specific user
@@ -714,8 +711,8 @@ export class ConnectedAccounts {
     try {
       return await this.client.connectedAccounts.patch(nanoid, body);
     } catch (error) {
-      // Same `AclOnlyForShared` 400 the create path can hit — backend
-      // rejects ACL writes on a PRIVATE row at PATCH-time too.
+      // Same ACL-on-PRIVATE rejection the create path can hit — surface
+      // it as a typed error.
       if (
         error instanceof BadRequestError &&
         typeof error.message === 'string' &&

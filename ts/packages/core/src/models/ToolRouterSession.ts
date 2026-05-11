@@ -76,9 +76,9 @@ export const DIRECT_CUSTOM_TOOL_DESCRIPTION_PREFIX =
  * Options accepted by {@link ToolRouterSession.authorize}.
  *
  * Validated at the SDK boundary so callers get clear `ValidationError`s for
- * oversized ACL lists or invalid user IDs — same Zod caps as the equivalent
+ * oversized ACL lists or invalid `userId`s — same caps as the equivalent
  * `composio.connectedAccounts.link()` path (≤1000 entries per list, each
- * user_id 1..256 chars). Caught Bugbot review.
+ * `userId` 1..256 characters).
  */
 const AuthorizeOptionsSchema = z.object({
   callbackUrl: z.string().optional(),
@@ -327,15 +327,14 @@ export class ToolRouterSession<
    * Initiate an authorization flow for a toolkit.
    * Returns a ConnectionRequest with a redirect URL for the user.
    *
-   * `accountType` and `aclConfigForShared` (Hermes #9860, #9902) let the
-   * caller create a SHARED connection with a per-user ACL in one flow.
-   * Default behaviour (omit both) creates a PRIVATE connection.
+   * Use `accountType` and `aclConfigForShared` to create a SHARED connection
+   * with a per-user ACL in one flow. Default behaviour (omit both) creates
+   * a PRIVATE connection.
    *
-   * `aclConfigForShared` is validated through `ConnectedAccountAclConfigSchema`
-   * — same Zod caps as `composio.connectedAccounts.link()` (≤1000 entries
-   * per list, each user_id 1..256 chars). Invalid input throws
-   * `ValidationError` at the SDK boundary instead of hitting an opaque
-   * backend 400.
+   * `aclConfigForShared` is validated against the same caps as
+   * `composio.connectedAccounts.link()` (≤1000 entries per list, each
+   * `userId` 1..256 characters). Invalid input throws `ValidationError`
+   * at the SDK boundary.
    */
   async authorize(
     toolkit: string,
@@ -379,9 +378,8 @@ export class ToolRouterSession<
     try {
       response = await this.client.toolRouter.session.link(this.sessionId, body);
     } catch (error) {
-      // Backend rejects ACL fields on PRIVATE connections with a 400 +
-      // `ConnectedAccount_AclOnlyForShared`. Surface it as a typed error
-      // mirroring `composio.connectedAccounts.link()`.
+      // The server rejects ACL on PRIVATE connections — surface that as a
+      // typed error mirroring `composio.connectedAccounts.link()`.
       if (
         error instanceof BadRequestError &&
         typeof error.message === 'string' &&
