@@ -598,9 +598,7 @@ class TestConnectedAccountsAcl:
             "not_allowed_user_ids": ["user_bob"],
         }
 
-    def test_link_omits_acl_when_not_provided(
-        self, connected_accounts, mock_client
-    ):
+    def test_link_omits_acl_when_not_provided(self, connected_accounts, mock_client):
         connected_accounts.link(
             user_id="user_creator",
             auth_config_id="auth_config_123",
@@ -626,9 +624,7 @@ class TestConnectedAccountsAcl:
             "allowed_user_ids": ["user_alice"]
         }
 
-    def test_link_preserves_explicit_empty_lists(
-        self, connected_accounts, mock_client
-    ):
+    def test_link_preserves_explicit_empty_lists(self, connected_accounts, mock_client):
         """An empty list is meaningful (clear the allow/deny list)."""
         connected_accounts.link(
             user_id="user_creator",
@@ -676,9 +672,7 @@ class TestConnectedAccountsAcl:
 
     # -- update_acl() body construction + mapper ----------------------------
 
-    def test_update_acl_serializes_nested_body(
-        self, connected_accounts, mock_client
-    ):
+    def test_update_acl_serializes_nested_body(self, connected_accounts, mock_client):
         response = Mock()
         response.id = "ca_abc"
         response.status = "ACTIVE"

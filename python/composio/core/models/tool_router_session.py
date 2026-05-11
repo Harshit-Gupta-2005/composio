@@ -540,7 +540,9 @@ class ToolRouterSession(t.Generic[TTool, TToolCollection]):
         callback_url: t.Optional[str] = None,
         alias: t.Optional[str] = None,
         account_type: t.Optional[t.Literal["PRIVATE", "SHARED"]] = None,
-        acl_config_for_shared: t.Optional[session_link_params.ACLConfigForShared] = None,
+        acl_config_for_shared: t.Optional[
+            session_link_params.ACLConfigForShared
+        ] = None,
     ) -> ConnectionRequest:
         """
         Authorize a toolkit for the user and get a connection request.
