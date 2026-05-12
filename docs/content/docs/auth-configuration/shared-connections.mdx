@@ -1,9 +1,13 @@
 ---
-title: Shared Connections
+title: "Shared Connections (Experimental)"
 description: Make a connected account usable by multiple users with a per-user access control list
-keywords: [shared connection, account type, SHARED, PRIVATE, ACL, allow all users, allowed user ids, not allowed user ids]
+keywords: [shared connection, account type, SHARED, PRIVATE, ACL, experimental, allow all users, allowed user ids, not allowed user ids]
 llmGuardrails: "direct-execution"
 ---
+
+<Callout type="warn">
+Shared Connections APIs are experimental and may change in future releases. Both the wire shape and SDK surface are being restructured into a `composio.experimental.*` namespace — pin a specific SDK version if you depend on the current shape.
+</Callout>
 
 <Callout type="info">
 If you're building an agent, prefer [sessions](/docs/configuring-sessions). Sessions let you pin a shared connection into a session config; see [Using a shared connection in a session](#using-a-shared-connection) below.
