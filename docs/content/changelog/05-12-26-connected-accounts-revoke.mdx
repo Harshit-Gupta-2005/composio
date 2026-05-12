@@ -40,16 +40,14 @@ The `revoked_tokens` array lists the subjects revoked at the provider during thi
 | Code | Meaning |
 |------|---------|
 | `200` | Connection revoked (or already revoked — see `revoked_tokens`) |
-| `400` | Toolkit is not OAuth 2.0 or has no revoke configuration |
-| `404` | Connected account does not exist or its parent auth config was removed |
+| `400` | Revoke is not supported for this toolkit |
+| `404` | Connected account does not exist |
 | `409` | Connection is not in a revokable state (only `ACTIVE` and already-`REVOKED` are accepted) |
-| `500` | Database failure or every upstream revoke dispatch failed |
+| `500` | Server error — revocation could not be completed |
 
-### Revoke Is Not Automatic on Delete (Today)
+### Revoke Is Not Automatic on Delete
 
-Deleting a connected account or a project does **not** currently revoke tokens at the upstream provider — the credentials are removed from Composio but may remain live at the third-party until they expire naturally. If you need credentials killed at the provider, follow **revoke-then-delete** semantics: call `POST /revoke` first, then issue the delete.
-
-In a future release, we may extend delete to cascade into revoke automatically. We'll announce this separately before changing the behavior; until then, treat the two steps as independent.
+Deleting a connected account or a project does **not** revoke tokens at the upstream provider — the credentials are removed from Composio but may remain live at the third-party until they expire naturally. If you need credentials killed at the provider, follow **revoke-then-delete** semantics: call `POST /revoke` first, then issue the delete.
 
 ### Revoke Is Best-Effort
 
@@ -57,4 +55,4 @@ Some providers do not expose a programmatic way to revoke one or both token subj
 
 ### Externally Revoked Tokens
 
-If a user revokes the connection directly with the provider (for example, removing the app from their account on the provider's website), the upstream revoke call from this endpoint may return an error. Such connections are eventually detected and marked as `EXPIRED` by the platform — you do not need to take additional action, but you should expect the revoke call itself to fail in that window.
+If a user revokes the connection directly with the provider (for example, removing the app from their account on the provider's website), the upstream revoke call from this endpoint may return an error. Handle this case by treating the connection as already revoked on your side.
