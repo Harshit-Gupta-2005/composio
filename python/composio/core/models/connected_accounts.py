@@ -21,6 +21,7 @@ from composio.client.types import (
 )
 
 from .base import Resource
+from .experimental import ACL_ONLY_FOR_SHARED_ERROR_FRAGMENT
 
 logger = logging.getLogger(__name__)
 
@@ -647,7 +648,7 @@ class ConnectedAccounts:
             # as a typed error so callers can ``except`` instead of grepping
             # messages.
             message = str(error)
-            if "acl_config_for_shared is only valid on SHARED" in message:
+            if ACL_ONLY_FOR_SHARED_ERROR_FRAGMENT in message:
                 raise exceptions.ComposioAclOnlyForSharedError(message) from error
             raise
 

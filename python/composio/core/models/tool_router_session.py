@@ -36,6 +36,7 @@ from composio.client.types import Tool
 from composio.core.models._modifiers import Modifiers, apply_modifier_by_type
 from composio.core.models.connected_accounts import ConnectionRequest
 from composio.core.models.custom_tool import find_custom_tool_map_entry_by_final_slug
+from composio.core.models.experimental import ACL_ONLY_FOR_SHARED_ERROR_FRAGMENT
 from composio.core.models.custom_tool_execution import (
     execute_custom_tool,
     find_custom_tool,
@@ -565,7 +566,7 @@ class ToolRouterSession(t.Generic[TTool, TToolCollection]):
             # The server rejects ACL on PRIVATE connections — surface that
             # as a typed error mirroring ``composio.connected_accounts.link()``.
             message = str(error)
-            if "acl_config_for_shared is only valid on SHARED" in message:
+            if ACL_ONLY_FOR_SHARED_ERROR_FRAGMENT in message:
                 raise exceptions.ComposioAclOnlyForSharedError(message) from error
             raise
 

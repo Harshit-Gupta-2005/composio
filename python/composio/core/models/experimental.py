@@ -20,12 +20,24 @@ import typing as t
 
 from pydantic import BaseModel
 
+from composio.client import HttpClient
+from composio.client.types import (
+    connected_account_patch_params,
+    connected_account_patch_response,
+)
+
 from .custom_tool import (
     CustomTool,
     ExperimentalToolkit,
     _get_caller_locals,
     _infer_tool_from_function,
 )
+
+# Server-side 400 message the API uses to reject ACL writes against a
+# PRIVATE connection. Substring-matched in `update_acl` here and in the
+# sibling `link()` / `authorize()` call sites — kept as a single constant
+# so a server-side message tweak only requires one edit.
+ACL_ONLY_FOR_SHARED_ERROR_FRAGMENT = "acl_config_for_shared is only valid on SHARED"
 
 
 class ExperimentalAPI:
@@ -38,7 +50,7 @@ class ExperimentalAPI:
 
     Toolkit = ExperimentalToolkit
 
-    def __init__(self, client: t.Optional[t.Any] = None) -> None:
+    def __init__(self, client: t.Optional[HttpClient] = None) -> None:
         self._client = client
 
     def update_acl(
@@ -48,7 +60,7 @@ class ExperimentalAPI:
         allow_all_users: t.Optional[bool] = None,
         allowed_user_ids: t.Optional[t.List[str]] = None,
         not_allowed_user_ids: t.Optional[t.List[str]] = None,
-    ) -> t.Any:
+    ) -> connected_account_patch_response.ConnectedAccountPatchResponse:
         """
         Update the per-user ACL on a SHARED connected account. Experimental —
         shape may change in future releases.
@@ -75,7 +87,7 @@ class ExperimentalAPI:
                 not_allowed_user_ids=['user_bob'],
             )
         """
-        from composio_client import BadRequestError, omit
+        from composio_client import BadRequestError
 
         from composio import exceptions
 
@@ -105,13 +117,16 @@ class ExperimentalAPI:
         try:
             return self._client.connected_accounts.patch(
                 nanoid,
-                experimental={"acl_config_for_shared": acl},
-                alias=omit,
-                connection=omit,
+                experimental={
+                    "acl_config_for_shared": t.cast(
+                        connected_account_patch_params.ExperimentalACLConfigForShared,
+                        acl,
+                    ),
+                },
             )
         except BadRequestError as error:
             message = str(error)
-            if "acl_config_for_shared is only valid on SHARED" in message:
+            if ACL_ONLY_FOR_SHARED_ERROR_FRAGMENT in message:
                 raise exceptions.ComposioAclOnlyForSharedError(message) from error
             raise
 

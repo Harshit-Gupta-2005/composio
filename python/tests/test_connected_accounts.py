@@ -687,8 +687,6 @@ class TestConnectedAccountsAcl:
                     "not_allowed_user_ids": ["user_bob"],
                 }
             },
-            alias=omit,
-            connection=omit,
         )
         assert result is response
 
@@ -700,8 +698,6 @@ class TestConnectedAccountsAcl:
             experimental={
                 "acl_config_for_shared": {"allowed_user_ids": ["user_alice"]}
             },
-            alias=omit,
-            connection=omit,
         )
 
     def test_update_acl_preserves_empty_array(self, experimental, mock_client):
@@ -710,8 +706,6 @@ class TestConnectedAccountsAcl:
         mock_client.connected_accounts.patch.assert_called_once_with(
             "ca_abc",
             experimental={"acl_config_for_shared": {"allowed_user_ids": []}},
-            alias=omit,
-            connection=omit,
         )
 
     def test_update_acl_rejects_all_none(self, experimental, mock_client):
