@@ -83,8 +83,12 @@ export const DIRECT_CUSTOM_TOOL_DESCRIPTION_PREFIX =
 const AuthorizeOptionsSchema = z.object({
   callbackUrl: z.string().optional(),
   alias: z.string().optional(),
-  accountType: ConnectedAccountTypeSchema.optional(),
-  aclConfigForShared: ConnectedAccountAclConfigSchema.optional(),
+  experimental: z
+    .object({
+      accountType: ConnectedAccountTypeSchema.optional(),
+      aclConfigForShared: ConnectedAccountAclConfigSchema.optional(),
+    })
+    .optional(),
 });
 
 export class ToolRouterSession<
@@ -327,9 +331,11 @@ export class ToolRouterSession<
    * Initiate an authorization flow for a toolkit.
    * Returns a ConnectionRequest with a redirect URL for the user.
    *
-   * Use `accountType` and `aclConfigForShared` to create a SHARED connection
-   * with a per-user ACL in one flow. Default behaviour (omit both) creates
-   * a PRIVATE connection.
+   * Pass `experimental: { accountType: 'SHARED', aclConfigForShared }` to
+   * create a SHARED connection with a per-user ACL in one flow. Default
+   * behaviour (omit the block) creates a PRIVATE connection.
+   *
+   * Experimental — shape may change in future releases.
    *
    * `aclConfigForShared` is validated against the same caps as
    * `composio.connectedAccounts.link()` (≤1000 entries per list, each
@@ -341,8 +347,10 @@ export class ToolRouterSession<
     options?: {
       callbackUrl?: string;
       alias?: string;
-      accountType?: ConnectedAccountType;
-      aclConfigForShared?: ConnectedAccountAclConfig;
+      experimental?: {
+        accountType?: ConnectedAccountType;
+        aclConfigForShared?: ConnectedAccountAclConfig;
+      };
     }
   ): Promise<ConnectionRequest> {
     const requestOptions = AuthorizeOptionsSchema.safeParse(options ?? {});
@@ -352,26 +360,35 @@ export class ToolRouterSession<
       });
     }
     const opts = requestOptions.data;
-    const aclWire: SessionLinkParams.ACLConfigForShared | undefined =
-      opts.aclConfigForShared === undefined
+    const experimentalIn = opts.experimental;
+    const aclWire: SessionLinkParams.Experimental.ACLConfigForShared | undefined =
+      experimentalIn?.aclConfigForShared === undefined
         ? undefined
         : {
-            ...(opts.aclConfigForShared.allowAllUsers !== undefined && {
-              allow_all_users: opts.aclConfigForShared.allowAllUsers,
+            ...(experimentalIn.aclConfigForShared.allowAllUsers !== undefined && {
+              allow_all_users: experimentalIn.aclConfigForShared.allowAllUsers,
             }),
-            ...(opts.aclConfigForShared.allowedUserIds !== undefined && {
-              allowed_user_ids: opts.aclConfigForShared.allowedUserIds,
+            ...(experimentalIn.aclConfigForShared.allowedUserIds !== undefined && {
+              allowed_user_ids: experimentalIn.aclConfigForShared.allowedUserIds,
             }),
-            ...(opts.aclConfigForShared.notAllowedUserIds !== undefined && {
-              not_allowed_user_ids: opts.aclConfigForShared.notAllowedUserIds,
+            ...(experimentalIn.aclConfigForShared.notAllowedUserIds !== undefined && {
+              not_allowed_user_ids: experimentalIn.aclConfigForShared.notAllowedUserIds,
             }),
+          };
+    const experimentalWire: SessionLinkParams.Experimental | undefined =
+      experimentalIn === undefined
+        ? undefined
+        : {
+            ...(experimentalIn.accountType !== undefined && {
+              account_type: experimentalIn.accountType,
+            }),
+            ...(aclWire !== undefined && { acl_config_for_shared: aclWire }),
           };
     const body: SessionLinkParams = {
       toolkit,
       ...(opts.callbackUrl !== undefined && { callback_url: opts.callbackUrl }),
       ...(opts.alias !== undefined && { alias: opts.alias }),
-      ...(opts.accountType !== undefined && { account_type: opts.accountType }),
-      ...(aclWire !== undefined && { acl_config_for_shared: aclWire }),
+      ...(experimentalWire !== undefined && { experimental: experimentalWire }),
     };
 
     let response;

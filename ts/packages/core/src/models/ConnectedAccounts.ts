@@ -64,7 +64,7 @@ let _legacyInitiateWarningEmitted = false;
  * deny-by-default, but the explicit form preserves the caller's intent
  * in network traces.
  */
-function serializeAclConfigForWire(
+export function serializeAclConfigForWire(
   acl:
     | {
         allowAllUsers?: boolean;
@@ -72,13 +72,33 @@ function serializeAclConfigForWire(
         notAllowedUserIds?: string[];
       }
     | undefined
-): LinkCreateParams.ACLConfigForShared | undefined {
+): LinkCreateParams.Experimental.ACLConfigForShared | undefined {
   if (acl === undefined) return undefined;
   return {
     ...(acl.allowAllUsers !== undefined && { allow_all_users: acl.allowAllUsers }),
     ...(acl.allowedUserIds !== undefined && { allowed_user_ids: acl.allowedUserIds }),
     ...(acl.notAllowedUserIds !== undefined && { not_allowed_user_ids: acl.notAllowedUserIds }),
   };
+}
+
+/**
+ * Serialise the SDK's `experimental` block (camelCase) into the wire's
+ * `experimental` block (snake_case). Returns `undefined` when the caller
+ * didn't pass anything.
+ */
+function serializeExperimentalForWire(
+  experimental: import('../types/connectedAccounts.types').ConnectedAccountExperimental | undefined
+): LinkCreateParams.Experimental | undefined {
+  if (experimental === undefined) return undefined;
+  const aclWire = serializeAclConfigForWire(experimental.aclConfigForShared);
+  const wire: LinkCreateParams.Experimental = {};
+  if (experimental.accountType !== undefined) {
+    wire.account_type = experimental.accountType;
+  }
+  if (aclWire !== undefined) {
+    wire.acl_config_for_shared = aclWire;
+  }
+  return wire;
 }
 
 /**
@@ -141,6 +161,9 @@ export class ConnectedAccounts {
         statuses: parsedQuery.data.statuses as ConnectedAccountListParamsRaw['statuses'],
         toolkit_slugs: parsedQuery.data.toolkitSlugs,
         user_ids: parsedQuery.data.userIds,
+        ...(parsedQuery.data.accountType !== undefined && {
+          account_type: parsedQuery.data.accountType,
+        }),
       };
     }
 
@@ -398,14 +421,13 @@ export class ConnectedAccounts {
     }
 
     const opts = requestOptions.data;
-    const aclWire = serializeAclConfigForWire(opts.aclConfigForShared);
+    const experimentalWire = serializeExperimentalForWire(opts.experimental);
     const body: LinkCreateParams = {
       auth_config_id: authConfigId,
       user_id: userId,
       ...(opts.callbackUrl !== undefined && { callback_url: opts.callbackUrl }),
       ...(opts.alias !== undefined && { alias: opts.alias }),
-      ...(opts.accountType !== undefined && { account_type: opts.accountType }),
-      ...(aclWire !== undefined && { acl_config_for_shared: aclWire }),
+      ...(experimentalWire !== undefined && { experimental: experimentalWire }),
     };
 
     try {
@@ -617,7 +639,8 @@ export class ConnectedAccounts {
   /**
    * Enable or disable a connected account. Accepts `{ enabled: boolean }`.
    *
-   * For ACL writes on SHARED connections, see {@link updateAcl}.
+   * For ACL writes on SHARED connections, see `experimental_updateAcl`
+   * exported at the top level of `@composio/core`.
    *
    * @param {string} nanoid - The unique identifier of the connected account
    * @param {UpdateConnectedAccountParams} params - The update parameters
@@ -642,85 +665,93 @@ export class ConnectedAccounts {
 
     return this.client.connectedAccounts.updateStatus(nanoid, parsedParams.data);
   }
+}
 
-  /**
-   * Update the per-user ACL on a SHARED connected account.
-   *
-   * Only meaningful for SHARED connections — calling this on a PRIVATE
-   * connection raises `ComposioAclOnlyForSharedError` (400). ACL writes
-   * require the connection's creator or an API key; alias edits via
-   * {@link update} are governed separately.
-   *
-   * PATCH semantics: omit a field to leave it unchanged; pass an empty array
-   * to clear an allow/deny list. At least one field must be provided.
-   *
-   * Resolution rule (deny wins):
-   *   1. requesting `userId` in `notAllowedUserIds` → DENY
-   *   2. `allowAllUsers === true`                   → ALLOW
-   *   3. requesting `userId` in `allowedUserIds`    → ALLOW
-   *   4. otherwise                                  → DENY
-   *
-   * @example
-   * ```typescript
-   * // Allow every userId to use this connection
-   * await composio.connectedAccounts.updateAcl('ca_abc', { allowAllUsers: true });
-   *
-   * // Everyone except a specific user
-   * await composio.connectedAccounts.updateAcl('ca_abc', {
-   *   allowAllUsers: true,
-   *   notAllowedUserIds: ['user_bob'],
-   * });
-   *
-   * // Targeted allow
-   * await composio.connectedAccounts.updateAcl('ca_abc', {
-   *   allowedUserIds: ['user_alice', 'user_bob'],
-   * });
-   *
-   * // Revoke a previously-granted allow list (back to deny-by-default)
-   * await composio.connectedAccounts.updateAcl('ca_abc', { allowedUserIds: [] });
-   * ```
-   *
-   * **Empty-array semantics — read carefully.** Passing `[]` for either
-   * list **replaces** the list, it does not extend it:
-   *
-   * - `allowedUserIds: []` → revoke all previously-granted user IDs (state
-   *   reverts to deny-by-default unless `allowAllUsers` is true).
-   * - `notAllowedUserIds: []` → **clears the deny list**, which silently
-   *   re-grants access to users you previously blocked. Always pair an
-   *   empty deny list with a deliberate audit of the allow side.
-   *
-   * @returns The PATCH response (`{ id, status, success }`). To read the
-   * updated `aclConfigForShared` block, call `get(nanoid)` after the
-   * promise resolves.
-   */
-  async updateAcl(
-    nanoid: string,
-    params: UpdateConnectedAccountAclParams
-  ): Promise<ConnectedAccountPatchResponse> {
-    const parsedParams = UpdateConnectedAccountAclParamsSchema.safeParse(params);
-    if (!parsedParams.success) {
-      throw new ValidationError('Failed to parse connected account ACL update params', {
-        cause: parsedParams.error,
-      });
-    }
+/**
+ * Update the per-user ACL on a SHARED connected account. Experimental —
+ * shape may change in future releases.
+ *
+ * Only meaningful for SHARED connections — calling this on a PRIVATE
+ * connection raises `ComposioAclOnlyForSharedError` (400). ACL writes
+ * require the connection's creator or an API key.
+ *
+ * PATCH semantics: omit a field to leave it unchanged; pass an empty array
+ * to clear an allow/deny list. At least one field must be provided.
+ *
+ * Resolution rule (deny wins):
+ *   1. requesting `userId` in `notAllowedUserIds` → DENY
+ *   2. `allowAllUsers === true`                   → ALLOW
+ *   3. requesting `userId` in `allowedUserIds`    → ALLOW
+ *   4. otherwise                                  → DENY
+ *
+ * @example
+ * ```typescript
+ * import { Composio, experimental_updateAcl } from '@composio/core';
+ *
+ * const composio = new Composio({ apiKey: '...' });
+ *
+ * // Allow every userId to use this connection
+ * await experimental_updateAcl(composio, 'ca_abc', { allowAllUsers: true });
+ *
+ * // Everyone except a specific user
+ * await experimental_updateAcl(composio, 'ca_abc', {
+ *   allowAllUsers: true,
+ *   notAllowedUserIds: ['user_bob'],
+ * });
+ *
+ * // Targeted allow
+ * await experimental_updateAcl(composio, 'ca_abc', {
+ *   allowedUserIds: ['user_alice', 'user_bob'],
+ * });
+ *
+ * // Revoke a previously-granted allow list (back to deny-by-default)
+ * await experimental_updateAcl(composio, 'ca_abc', { allowedUserIds: [] });
+ * ```
+ *
+ * **Empty-array semantics — read carefully.** Passing `[]` for either
+ * list **replaces** the list, it does not extend it:
+ *
+ * - `allowedUserIds: []` → revoke all previously-granted user IDs (state
+ *   reverts to deny-by-default unless `allowAllUsers` is true).
+ * - `notAllowedUserIds: []` → **clears the deny list**, which silently
+ *   re-grants access to users you previously blocked. Always pair an
+ *   empty deny list with a deliberate audit of the allow side.
+ *
+ * @returns The PATCH response (`{ id, status, success }`). To read the
+ *   updated ACL block, call `composio.connectedAccounts.get(nanoid)`
+ *   after the promise resolves and inspect `account.experimental?.aclConfigForShared`.
+ */
+export async function experimental_updateAcl(
+  composio: { getClient: () => ComposioClient },
+  nanoid: string,
+  params: UpdateConnectedAccountAclParams
+): Promise<ConnectedAccountPatchResponse> {
+  const parsedParams = UpdateConnectedAccountAclParamsSchema.safeParse(params);
+  if (!parsedParams.success) {
+    throw new ValidationError('Failed to parse connected account ACL update params', {
+      cause: parsedParams.error,
+    });
+  }
 
-    const body: ConnectedAccountPatchParams = {
+  const client = composio.getClient();
+  const body: ConnectedAccountPatchParams = {
+    experimental: {
       acl_config_for_shared: serializeAclConfigForWire(parsedParams.data),
-    };
+    },
+  };
 
-    try {
-      return await this.client.connectedAccounts.patch(nanoid, body);
-    } catch (error) {
-      // Same ACL-on-PRIVATE rejection the create path can hit — surface
-      // it as a typed error.
-      if (
-        error instanceof BadRequestError &&
-        typeof error.message === 'string' &&
-        error.message.includes('acl_config_for_shared is only valid on SHARED')
-      ) {
-        throw new ComposioAclOnlyForSharedError(error.message, { cause: error });
-      }
-      throw error;
+  try {
+    return await client.connectedAccounts.patch(nanoid, body);
+  } catch (error) {
+    // Same ACL-on-PRIVATE rejection the create path can hit — surface
+    // it as a typed error.
+    if (
+      error instanceof BadRequestError &&
+      typeof error.message === 'string' &&
+      error.message.includes('acl_config_for_shared is only valid on SHARED')
+    ) {
+      throw new ComposioAclOnlyForSharedError(error.message, { cause: error });
     }
+    throw error;
   }
 }

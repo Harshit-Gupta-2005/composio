@@ -38,5 +38,8 @@ export { default as logger } from './utils/logger';
 export { createCustomTool as experimental_createTool } from './models/CustomTool';
 export { createCustomToolkit as experimental_createToolkit } from './models/CustomTool';
 
+// Experimental shared connected accounts — shape may change in future releases
+export { experimental_updateAcl } from './models/ConnectedAccounts';
+
 // Error handling exports
 export * from './errors';
