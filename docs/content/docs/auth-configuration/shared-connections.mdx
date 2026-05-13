@@ -36,7 +36,7 @@ SHARED connections are never used implicitly. A session belonging to a non-creat
 
 ## Creating a SHARED connection
 
-Pass an `experimental` block to `link()` containing `account_type: "SHARED"` (and optionally an initial ACL). Omit the ACL block to keep the default deny-by-default state (only the creator can use it until you grant access).
+Pass an `experimental` block to `link()` (`accountType` in TypeScript, `account_type` in Python) set to `"SHARED"`, and optionally an initial ACL. Omit the ACL block to keep the default deny-by-default state (only the creator can use it until you grant access).
 
 <Tabs groupId="language" items={['Python', 'TypeScript']} persist>
   <Tab value="Python">
@@ -114,9 +114,9 @@ The creator can always use their own connection — the ACL only governs other `
 
 ### Common ACL patterns
 
-The table below shows the inner shape of `acl_config_for_shared` — wrap it inside the `experimental` block at the call site.
+The table below shows the inner shape of the ACL block (`aclConfigForShared` in TypeScript, `acl_config_for_shared` in Python) — wrap it inside the `experimental` block at the call site. Field names are camelCase in the TypeScript samples; Python callers translate to snake_case (`allow_all_users`, `allowed_user_ids`, `not_allowed_user_ids`).
 
-| Goal | `acl_config_for_shared` |
+| Goal | ACL block |
 |---|---|
 | **Only the creator** (default) | `{}` (or omit the block) |
 | **Allow every `userId`** | `{ allowAllUsers: true }` |
