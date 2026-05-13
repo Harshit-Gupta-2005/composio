@@ -6,7 +6,7 @@ llmGuardrails: "direct-execution"
 ---
 
 <Callout type="warn">
-Shared Connections APIs are experimental and may change in future releases. All new fields are nested under an `experimental` block on the wire, and the SDK methods that operate on them (`experimental_updateAcl`, `composio.experimental.update_acl`) live under an experimental namespace. The code samples below show the experimental shape — pin a specific SDK version if you depend on the current contract.
+Shared Connections APIs are experimental and may change in future releases. All new fields are nested under an `experimental` block on the wire, and the SDK methods that operate on them live under the `composio.experimental` namespace (`composio.experimental.update_acl` in Python, `composio.experimental.updateAcl` in TypeScript). The code samples below show the experimental shape — pin a specific SDK version if you depend on the current contract.
 </Callout>
 
 <Callout type="info">
@@ -156,22 +156,22 @@ composio.experimental.update_acl(
   <Tab value="TypeScript">
 ```typescript
 // @noErrors
-import { Composio, experimental_updateAcl } from '@composio/core';
+import { Composio } from '@composio/core';
 const composio = new Composio({ apiKey: 'your_api_key' });
 // ---cut---
 // Open access to everyone.
-await experimental_updateAcl(composio, "ca_gmail_shared", {
+await composio.experimental.updateAcl("ca_gmail_shared", {
   allowAllUsers: true,
 });
 
 // Add a targeted allow list (without touching the wildcard or deny list).
-await experimental_updateAcl(composio, "ca_gmail_shared", {
+await composio.experimental.updateAcl("ca_gmail_shared", {
   allowedUserIds: ["user_alice", "user_bob"],
 });
 
 // Revoke the allow list — only the creator can use it again
 // (unless allowAllUsers is true).
-await experimental_updateAcl(composio, "ca_gmail_shared", {
+await composio.experimental.updateAcl("ca_gmail_shared", {
   allowedUserIds: [],
 });
 ```
@@ -262,6 +262,56 @@ const result = await composio.tools.execute("GMAIL_SEND_EMAIL", {
 
 If `user_alice` isn't permitted by the connection's ACL, the call raises `ComposioSharedAccessDeniedError`.
 
+## Listing SHARED connections
+
+By default `list()` returns **PRIVATE only** — shared accounts must be requested explicitly. Pass an `account_type` (Python) / `accountType` (TypeScript) filter to scope the query.
+
+| Value | Returns |
+|---|---|
+| `'PRIVATE'` *(default when omitted)* | Only PRIVATE connections |
+| `'SHARED'` | Only SHARED connections |
+| `'ALL'` | PRIVATE + SHARED |
+
+The filter is a flat query param on the wire (`?account_type=...`), so it stays flat in both SDKs — unlike the create/update surfaces which nest under `experimental`.
+
+<Tabs groupId="language" items={['Python', 'TypeScript']} persist>
+  <Tab value="Python">
+```python
+# List every SHARED connection the caller has visibility into.
+shared = composio.connected_accounts.list(account_type="SHARED")
+
+for item in shared.items:
+    print(item.id, item.toolkit.slug)
+
+# Scope to a single user's SHARED connections.
+shared_for_alice = composio.connected_accounts.list(
+    account_type="SHARED",
+    user_ids=["user_alice"],
+)
+```
+  </Tab>
+  <Tab value="TypeScript">
+```typescript
+// @noErrors
+import { Composio } from '@composio/core';
+const composio = new Composio({ apiKey: 'your_api_key' });
+// ---cut---
+// List every SHARED connection the caller has visibility into.
+const shared = await composio.connectedAccounts.list({ accountType: "SHARED" });
+
+for (const item of shared.items) {
+  console.log(item.id, item.toolkit.slug);
+}
+
+// Scope to a single user's SHARED connections.
+const sharedForAlice = await composio.connectedAccounts.list({
+  accountType: "SHARED",
+  userIds: ["user_alice"],
+});
+```
+  </Tab>
+</Tabs>
+
 ## Inspecting the ACL
 
 `get()` and `list()` responses surface `accountType` and `aclConfigForShared` under the same `experimental` block as the request shape. The `aclConfigForShared` field is populated only when the caller is the connection's creator or is using an API key — other callers see the `experimental` block without that field.
@@ -346,14 +396,13 @@ except exceptions.ComposioSharedAccessDeniedError as e:
 // @noErrors
 import {
   Composio,
-  experimental_updateAcl,
   ComposioAclOnlyForSharedError,
   ComposioSharedAccessDeniedError,
 } from '@composio/core';
 const composio = new Composio({ apiKey: 'your_api_key' });
 // ---cut---
 try {
-  await experimental_updateAcl(composio, "ca_private_gmail", {
+  await composio.experimental.updateAcl("ca_private_gmail", {
     allowAllUsers: true,
   });
 } catch (error) {
