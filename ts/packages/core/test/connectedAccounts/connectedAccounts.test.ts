@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mockClient } from '../utils/mocks/client.mock';
-import { ConnectedAccounts, experimental_updateAcl } from '../../src/models/ConnectedAccounts';
+import { ConnectedAccounts } from '../../src/models/ConnectedAccounts';
+import { Experimental } from '../../src/models/Experimental';
 import ComposioClient from '@composio/client';
 import { ConnectedAccountRetrieveResponse } from '@composio/client/resources/connected-accounts.mjs';
 import {
@@ -1677,11 +1678,11 @@ describe('ConnectedAccounts', () => {
     });
   });
 
-  describe('experimental_updateAcl', () => {
-    let composioHandle: { getClient: () => typeof extendedMockClient };
+  describe('composio.experimental.updateAcl', () => {
+    let experimental: Experimental;
 
     beforeEach(() => {
-      composioHandle = { getClient: () => extendedMockClient };
+      experimental = new Experimental(extendedMockClient as unknown as ComposioClient);
     });
 
     it('serializes PATCH body under experimental.acl_config_for_shared', async () => {
@@ -1691,7 +1692,7 @@ describe('ConnectedAccounts', () => {
         success: true,
       });
 
-      const result = await experimental_updateAcl(composioHandle, 'ca_abc', {
+      const result = await experimental.updateAcl('ca_abc', {
         allowAllUsers: true,
         notAllowedUserIds: ['user_bob'],
       });
@@ -1714,7 +1715,7 @@ describe('ConnectedAccounts', () => {
         success: true,
       });
 
-      await experimental_updateAcl(composioHandle, 'ca_abc', { allowedUserIds: ['user_alice'] });
+      await experimental.updateAcl('ca_abc', { allowedUserIds: ['user_alice'] });
 
       expect(extendedMockClient.connectedAccounts.patch).toHaveBeenCalledWith('ca_abc', {
         experimental: {
@@ -1730,7 +1731,7 @@ describe('ConnectedAccounts', () => {
         success: true,
       });
 
-      await experimental_updateAcl(composioHandle, 'ca_abc', { allowedUserIds: [] });
+      await experimental.updateAcl('ca_abc', { allowedUserIds: [] });
 
       expect(extendedMockClient.connectedAccounts.patch).toHaveBeenCalledWith('ca_abc', {
         experimental: { acl_config_for_shared: { allowed_user_ids: [] } },
@@ -1738,7 +1739,7 @@ describe('ConnectedAccounts', () => {
     });
 
     it('rejects an empty params object via the refine', async () => {
-      await expect(experimental_updateAcl(composioHandle, 'ca_abc', {})).rejects.toMatchObject({
+      await expect(experimental.updateAcl('ca_abc', {})).rejects.toMatchObject({
         name: 'ValidationError',
       });
       expect(extendedMockClient.connectedAccounts.patch).not.toHaveBeenCalled();
@@ -1755,7 +1756,7 @@ describe('ConnectedAccounts', () => {
       );
 
       await expect(
-        experimental_updateAcl(composioHandle, 'ca_abc', { allowAllUsers: true })
+        experimental.updateAcl('ca_abc', { allowAllUsers: true })
       ).rejects.toBeInstanceOf(ComposioAclOnlyForSharedError);
     });
 
@@ -1763,9 +1764,9 @@ describe('ConnectedAccounts', () => {
       const otherError = new Error('connection lost');
       extendedMockClient.connectedAccounts.patch.mockRejectedValueOnce(otherError);
 
-      await expect(
-        experimental_updateAcl(composioHandle, 'ca_abc', { allowAllUsers: true })
-      ).rejects.toBe(otherError);
+      await expect(experimental.updateAcl('ca_abc', { allowAllUsers: true })).rejects.toBe(
+        otherError
+      );
     });
   });
 });

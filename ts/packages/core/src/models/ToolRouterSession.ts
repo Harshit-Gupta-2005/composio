@@ -27,12 +27,12 @@ import { SessionMetaToolOptions } from '../types/modifiers.types';
 import { ConnectionRequest } from '../types/connectionRequest.types';
 import { createConnectionRequest } from './ConnectionRequest';
 import {
-  ConnectedAccountAclConfigSchema,
+  ConnectedAccountExperimentalSchema,
   ConnectedAccountStatuses,
   ConnectedAccountType,
-  ConnectedAccountTypeSchema,
   ConnectedAccountAclConfig,
 } from '../types/connectedAccounts.types';
+import { ACL_ONLY_FOR_SHARED_ERROR_FRAGMENT, serializeExperimentalForWire } from './Experimental';
 import { z } from 'zod/v3';
 import { transform } from '../utils/transform';
 import { ToolkitConnectionStateSchema } from '../types/toolRouter.types';
@@ -83,12 +83,7 @@ export const DIRECT_CUSTOM_TOOL_DESCRIPTION_PREFIX =
 const AuthorizeOptionsSchema = z.object({
   callbackUrl: z.string().optional(),
   alias: z.string().optional(),
-  experimental: z
-    .object({
-      accountType: ConnectedAccountTypeSchema.optional(),
-      aclConfigForShared: ConnectedAccountAclConfigSchema.optional(),
-    })
-    .optional(),
+  experimental: ConnectedAccountExperimentalSchema.optional(),
 });
 
 export class ToolRouterSession<
@@ -360,35 +355,14 @@ export class ToolRouterSession<
       });
     }
     const opts = requestOptions.data;
-    const experimentalIn = opts.experimental;
-    const aclWire: SessionLinkParams.Experimental.ACLConfigForShared | undefined =
-      experimentalIn?.aclConfigForShared === undefined
-        ? undefined
-        : {
-            ...(experimentalIn.aclConfigForShared.allowAllUsers !== undefined && {
-              allow_all_users: experimentalIn.aclConfigForShared.allowAllUsers,
-            }),
-            ...(experimentalIn.aclConfigForShared.allowedUserIds !== undefined && {
-              allowed_user_ids: experimentalIn.aclConfigForShared.allowedUserIds,
-            }),
-            ...(experimentalIn.aclConfigForShared.notAllowedUserIds !== undefined && {
-              not_allowed_user_ids: experimentalIn.aclConfigForShared.notAllowedUserIds,
-            }),
-          };
-    const experimentalWire: SessionLinkParams.Experimental | undefined =
-      experimentalIn === undefined
-        ? undefined
-        : {
-            ...(experimentalIn.accountType !== undefined && {
-              account_type: experimentalIn.accountType,
-            }),
-            ...(aclWire !== undefined && { acl_config_for_shared: aclWire }),
-          };
+    const experimentalWire = serializeExperimentalForWire(opts.experimental);
     const body: SessionLinkParams = {
       toolkit,
       ...(opts.callbackUrl !== undefined && { callback_url: opts.callbackUrl }),
       ...(opts.alias !== undefined && { alias: opts.alias }),
-      ...(experimentalWire !== undefined && { experimental: experimentalWire }),
+      ...(experimentalWire !== undefined && {
+        experimental: experimentalWire as SessionLinkParams.Experimental,
+      }),
     };
 
     let response;
@@ -400,7 +374,7 @@ export class ToolRouterSession<
       if (
         error instanceof BadRequestError &&
         typeof error.message === 'string' &&
-        error.message.includes('acl_config_for_shared is only valid on SHARED')
+        error.message.includes(ACL_ONLY_FOR_SHARED_ERROR_FRAGMENT)
       ) {
         throw new ComposioAclOnlyForSharedError(error.message, { cause: error });
       }
