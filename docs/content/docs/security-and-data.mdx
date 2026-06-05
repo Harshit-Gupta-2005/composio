@@ -1,0 +1,88 @@
+---
+title: Security and data
+description: How Composio secures your data, what it stores, how long it is retained, and how to run with Zero Data Retention.
+keywords: [security, data retention, zero data retention, ZDR, log storage, sub-processors, compliance, trust center, encryption]
+---
+
+Composio is built with security at its core. We use least-privilege defaults, isolate every organization and project, encrypt credentials, and give you controls over what we store, including your end users' data.
+
+## Compliance and the Trust Center
+
+Composio is SOC 2 Type II compliant. For our latest reports and certifications (the SOC 2 Type II report, our sub-processor list, and more), visit the [Composio Trust Center](https://trust.composio.dev).
+
+{/* TRUST-OWNER: confirm the full certification list to name inline (ISO 27001?). SOC 2 Type II is the only one currently stated in our public FAQ. */}
+
+## Isolation and access control
+
+- Organizations and projects isolate your resources. Data from one project is not visible to another.
+- API keys are scoped, support per-key IP allowlisting, and can opt in to capabilities such as Proxy Execute at creation.
+- Multi-factor authentication (MFA) is available for Dashboard sign-in and can be enforced by an organization admin.
+
+## Credential protection
+
+- Connected-account credentials, auth configs, and API keys are encrypted at rest using AES-256-GCM, and all traffic is encrypted in transit using TLS.
+- Connected-account tokens are redacted by default in API responses, for both Composio-managed and custom auth configs. To act on a provider directly, use [Proxy Execute](/docs/proxy-execute).
+- Webhook deliveries are signed; verify the `webhook-signature` header (see [Webhook verification](/docs/webhook-verification)).
+
+## Customer data vs. your end users' data
+
+Throughout this guide, *you* are the Composio customer, and *your end users* are the people your agent acts on behalf of, each identified by the opaque `user_id` you supply. When a tool runs, its request and response often contain **your end users' data**. Composio never stores your end users' identities (only the `user_id` you provide), so their data lives entirely in the **tool-call payloads**, which is exactly what the **Log storage** control below governs.
+
+## What Composio stores
+
+When your agent runs a tool, Composio writes an execution log. Each log records:
+
+- which toolkit and action ran, success or failure and the status, the connection and auth-config IDs, the `user_id` you supplied, timing, and the runtime/source;
+- by default, the **request arguments** and the **response data** of the call.
+
+Trigger events are logged similarly.
+
+## How long we retain it
+
+Tool execution logs and trigger event logs are retained for up to **one year**, after which they are automatically deleted.
+
+{/* TRUST-OWNER: code-confirmed TTL is 1 year for tool/trigger logs. Confirm windows for other data classes before stating them. */}
+
+## Zero Data Retention: the Log storage setting
+
+You control how much of each call is stored, per project, in **Settings → General → Log storage**:
+
+- **Store all logs** (default) — the full request and response payloads are stored on the execution log.
+- **Don't store data** — Composio does not persist the request arguments or the response data of your tool calls. It keeps only the audit record: which tool ran, when, success or failure, the IDs, and timing.
+
+Selecting **Don't store data** lets you run Composio with **zero retention of tool-call payloads**, including your end users' data, while keeping an audit trail. The same setting governs [Proxy Execute](/docs/proxy-execute) logging, which fails closed: if the setting cannot be read, payloads are not stored.
+
+![Log storage set to "Don't store data" in Project Settings, General](/images/log-storage-dont-store-data.png)
+
+<Callout type="info">
+To enable: open the Dashboard, choose your project, go to **Settings → General → Log storage**, and select **Don't store data**.
+</Callout>
+
+### What "Don't store data" does and does not cover
+
+- **Covered:** the request arguments and response data are dropped from the durable execution log.
+- **Not covered** (inherent to running a tool call): while a call runs, the data is still sent to the destination provider and passes through Composio's execution path; file payloads may transit object storage; and trigger payloads are delivered to your configured destinations in real time.
+
+## Data flow and sub-processors
+
+Composio relies on a small set of infrastructure providers to host the platform, execute your tool calls, and deliver triggers. The **authoritative, current list of our sub-processors** lives in the [Composio Trust Center](https://trust.composio.dev/subprocessors). At a category level:
+
+- **Tool calls** are made to the **destination provider** you integrate with, which receives the request and returns the response.
+- **Execution and logging** run on Composio's infrastructure; whether payloads are stored is governed by your Log storage setting above.
+- **Files** in tool calls may pass through object storage while a call runs.
+- **Code execution** runs in an isolated sandbox, only when you use the workbench or code execution.
+- **Triggers** are delivered to the destinations you configure, in real time.
+- **Tool discovery** sends your natural-language search query (not your execution payloads) to a model and embeddings provider.
+
+Composio's primary processing region is the United States (AWS `us-east-1`).
+
+{/* TRUST-OWNER: reconcile the sub-processor list (Trust Center lists 5; actual egress is broader) and confirm EU/region options before pointing customers here as authoritative. */}
+
+## Stronger guarantees
+
+For a contractual zero-data-retention agreement or shorter retention windows, [contact sales](https://composio.dev/contact?utm_source=docs). For our data-handling policies and the current sub-processor list, see the [Composio Trust Center](https://trust.composio.dev).
+
+## Reporting a vulnerability
+
+{/* TRUST-OWNER: confirm the disclosure channel. */}
+To report a security issue, contact `security@composio.dev`. Please do not disclose vulnerabilities publicly until we have addressed them.
