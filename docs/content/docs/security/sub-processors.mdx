@@ -1,0 +1,30 @@
+---
+title: Sub-processors and data flow
+description: Where your data goes when you use Composio, and which providers may process tool payloads versus only metadata.
+keywords: [sub-processors, subprocessors, data flow, third parties, data residency, gdpr]
+---
+
+When you execute tools through Composio, data flows to a small set of infrastructure providers. The authoritative, maintained sub-processor list lives in the [Composio Trust Center](https://trust.composio.dev); this page explains the categories so you can reason about exposure.
+
+## Providers that may process tool payloads
+
+- **The destination tool provider** (for example Gmail, Slack, Salesforce) — the tool call is made directly to them.
+- **Composio's execution backend and log store** — payloads are stored only when **Log storage** is set to **Store all logs** (see [Data retention](/docs/security/data-retention)).
+- **Object storage** (AWS S3 / Azure Blob) — for file payloads in tool calls.
+- **Code sandbox** (E2B) — only when you use the remote workbench or code execution.
+- **Real-time trigger delivery** — trigger payloads are streamed to the destinations you configure.
+
+## Providers that process only metadata or non-payload data
+
+- **Observability** (Datadog) — operational metadata and diagnostics.
+- **Tool search, grounding, and embeddings** providers — receive your natural-language search query when discovering tools, not your execution payloads.
+- **Vector store** — stores the tool catalog and query embeddings.
+- **Product analytics and billing** — usage and account data, not tool payloads.
+
+## Data residency
+
+Composio's primary processing region is AWS **us-east-1 (US)**.
+
+{/* TRUST-OWNER: confirm regional/EU options and whether to list named vendors + regions here vs. only on the Trust Center. Temporal payload-transit is unverified in env.ts — confirm before listing it as a payload sub-processor. */}
+
+For the current, authoritative list of sub-processors and our data-processing terms, see the [Composio Trust Center](https://trust.composio.dev).
