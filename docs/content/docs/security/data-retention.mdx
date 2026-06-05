@@ -6,6 +6,10 @@ keywords: [data retention, zero data retention, ZDR, logs, log storage, privacy,
 
 Composio stores an audit log of tool executions so you can observe and debug your agents. You control how much of each call is stored, including running with no payload retention at all.
 
+## Customer data vs. your end users' data
+
+Throughout this guide, *you* are the Composio customer, and *your end users* are the people your agent acts on behalf of, each identified by the opaque `user_id` you supply. When a tool runs, its request and response often contain **your end users' data**. Composio never stores your end users' identities (only the `user_id` you provide), so their data lives entirely in the **tool-call payloads**, which is exactly what the **Log storage** control below governs. Set it to **Don't store data** to keep an audit trail of which tools ran while ensuring Composio does not retain your end users' data.
+
 ## What Composio stores
 
 When your agent runs a tool, Composio writes an execution log. Each log records:
@@ -28,7 +32,7 @@ You control how much of each call is stored, per project, in **Settings → Gene
 - **Store all logs** (default) — the full request and response payloads are stored on the execution log.
 - **Don't store data** — Composio does not persist the request arguments or the response data of your tool calls. It keeps only the audit record: which tool ran, when, success or failure, the IDs, and timing.
 
-Selecting **Don't store data** lets you run Composio with **zero retention of tool-call payloads** while keeping an audit trail. The same setting governs [Proxy Execute](/docs/proxy-execute) logging, which fails closed: if the setting cannot be read, payloads are not stored.
+Selecting **Don't store data** lets you run Composio with **zero retention of tool-call payloads**, including your end users' data, while keeping an audit trail. The same setting governs [Proxy Execute](/docs/proxy-execute) logging, which fails closed: if the setting cannot be read, payloads are not stored.
 
 <Callout type="info">
 To enable: open the Dashboard, choose your project, go to **Settings → General → Log storage**, and select **Don't store data**.
