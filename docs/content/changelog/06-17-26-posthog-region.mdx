@@ -1,0 +1,17 @@
+---
+title: "PostHog connections: set your data region (US or EU) per connection"
+description: "The PostHog region is now a per-connection setting. Existing connections keep their current region, so nothing changes for you."
+date: "2026-06-17"
+---
+
+The PostHog **region** (`us` or `eu`) is now set on the **connection** instead of the auth config. It used to be an auth-config setting, which fixed a single region for everyone connecting through that config, but region is really per-connection: different users can be in different regions.
+
+We have already taken care of existing connections, so nothing changes for you and there is no re-auth. If a connection was on the default (`us`), it stays on the default; if it used a different region such as `eu`, we carried that value over.
+
+### Going forward
+
+- Set `us` (US Cloud) or `eu` (EU Cloud) on the connection. The host is built as `<region>.posthog.com`, so a full URL will not work, and PostHog self-hosted (on-prem) is not supported.
+- **[Link flow](https://docs.composio.dev/reference/api-reference/connected-accounts/postConnectedAccountsLink)**: the Region field appears when the user connects, prefilled with your default and editable.
+- **[Initiate flow](https://docs.composio.dev/reference/api-reference/connected-accounts/postConnectedAccounts)**: you set the region; the end user does not see it.
+
+See the [PostHog toolkit docs](https://docs.composio.dev/toolkits/posthog) for the current connection fields.
