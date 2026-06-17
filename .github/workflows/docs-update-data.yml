@@ -43,19 +43,28 @@ jobs:
         env:
           COMPOSIO_BASE_URL_STAGING: ${{ secrets.COMPOSIO_BASE_URL_STAGING }}
         run: |
-          staging_v3_base="${COMPOSIO_BASE_URL_STAGING%/}"
+          staging_base="${COMPOSIO_BASE_URL_STAGING%/}"
 
-          if [ -z "$staging_v3_base" ]; then
+          if [ -z "$staging_base" ]; then
             echo "::error::COMPOSIO_BASE_URL_STAGING is not set"
             exit 1
           fi
 
-          if [[ "$staging_v3_base" != */api/v3 ]]; then
-            echo "::error::COMPOSIO_BASE_URL_STAGING must include the /api/v3 path"
+          if [[ "$staging_base" == "https://backend.composio.dev" || "$staging_base" == "https://backend.composio.dev/"* ]]; then
+            echo "::error::COMPOSIO_BASE_URL_STAGING points at production"
             exit 1
           fi
 
-          staging_v31_base="${staging_v3_base%/api/v3}/api/v3.1"
+          if [[ "$staging_base" == */api/v3 ]]; then
+            staging_v3_base="$staging_base"
+            staging_v31_base="${staging_base%/api/v3}/api/v3.1"
+          elif [[ "$staging_base" == */api/v3.1 ]]; then
+            staging_v3_base="${staging_base%/api/v3.1}/api/v3"
+            staging_v31_base="$staging_base"
+          else
+            staging_v3_base="$staging_base/api/v3"
+            staging_v31_base="$staging_base/api/v3.1"
+          fi
 
           {
             echo "COMPOSIO_API_BASE=$staging_v3_base"
