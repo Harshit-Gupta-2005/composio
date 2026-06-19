@@ -524,22 +524,6 @@ importers:
         specifier: 'catalog:'
         version: 5.9.3
 
-  ts/examples/cjs:
-    dependencies:
-      '@composio/core':
-        specifier: workspace:*
-        version: link:../../packages/core
-      dotenv:
-        specifier: ^16.4.1
-        version: 16.6.1
-    devDependencies:
-      '@types/bun':
-        specifier: ^1.2.9
-        version: 1.3.9
-      typescript:
-        specifier: 'catalog:'
-        version: 5.9.3
-
   ts/examples/cloudflare-wrangler:
     dependencies:
       '@composio/core':
