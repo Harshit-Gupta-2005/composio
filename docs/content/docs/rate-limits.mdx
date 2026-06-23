@@ -1,0 +1,105 @@
+---
+title: Rate limits & usage
+description: How Composio's API rate limits work, the headers to read, how to handle 429s, how upstream provider limits differ, and what to do for high-volume multi-tenant usage.
+keywords: [rate limit, rate limits, 429, too many requests, retry-after, x-ratelimit, throttling, quota, suspension, account suspended, abuse, high volume, multi-tenant, sla, status]
+---
+
+There are **two independent kinds of rate limit** when you use Composio, and most confusion comes from mixing them up:
+
+1. **Composio platform limits**: how many requests your organization can make to the Composio API per minute.
+2. **Upstream provider limits**: limits the *external* service (Gmail, Slack, Google Ads, etc.) enforces on the calls Composio makes on your behalf.
+
+This page covers both, plus how to handle `429`s and what to do for high-volume, multi-tenant workloads.
+
+## Composio platform rate limits
+
+Composio limits are applied **per organization**, on a **fixed one-minute window**, shared across all of your `userId`s, API keys, and endpoints (tool execution, connected accounts, triggers). The window resets at the start of each minute.
+
+### Read your limit from the response headers
+
+Your live limit is always returned on **every** response, so you never have to hardcode a number:
+
+| Header | Meaning |
+| --- | --- |
+| `X-RateLimit` | Your current request limit for the window |
+| `X-RateLimit-Remaining` | Requests remaining in the current window |
+| `X-RateLimit-Window-Size` | Window length, e.g. `60s` |
+
+Treat these headers as the source of truth and drive your client off them.
+
+### Default limits by plan
+
+These are the current **default** per-organization, per-minute ceilings. Your authoritative value is always `X-RateLimit` (limits can be raised for an account), but as an anchor for planning:
+
+| Plan | Requests per minute (per org) |
+| --- | --- |
+| Hobby / Starter | 2,000 |
+| Growth | 10,000 |
+| Enterprise | Effectively unlimited |
+
+### When you exceed the limit
+
+You get an **HTTP `429`** with a `Retry-After` header (seconds until the window resets):
+
+```json
+{ "message": "Rate limit exceeded. Limit: 2000 requests per 1 minutes" }
+```
+
+A `429` is a **throttle, not a cutoff**. The window auto-resets the next minute and you can continue, and nothing about your account changes.
+
+### Will I get suspended for going over?
+
+<Callout type="info">
+**No.** Composio does **not** automatically suspend, review, or restrict accounts based on request volume, concurrency, or error rates. Exceeding your limit only returns `429` throttling that clears on the next minute. There is no automated abuse trigger and no separate "account review" process.
+</Callout>
+
+The only hard block is a **manual** action by our team in rare cases (e.g. confirmed abuse). If that ever happens you'll receive an **HTTP `403`** with `Organization temporarily blocked. Please contact technical support.` It is never automatic, and support is the path to resolve it.
+
+### Handling 429s
+
+A small, well-behaved retry loop is all you need:
+
+- **Honor `Retry-After` first.** If it's present, wait that many seconds.
+- Otherwise wait for the window to roll over (`X-RateLimit-Window-Size`).
+- Otherwise fall back to **exponential backoff with jitter**, and cap retries (e.g. 5) before surfacing an error.
+- Watch `X-RateLimit-Remaining` and slow down *before* you hit zero.
+
+```python
+import time, random
+
+def with_backoff(make_request, max_retries=5):
+    for attempt in range(max_retries):
+        resp = make_request()
+        if resp.status_code != 429:
+            return resp
+        retry_after = resp.headers.get("Retry-After")
+        delay = float(retry_after) if retry_after else min(2 ** attempt, 30) + random.random()
+        time.sleep(delay)
+    raise RuntimeError("Composio rate limit: retries exhausted")
+```
+
+Other good practices: cache tool definitions and other static data, batch where you can, and avoid tight polling loops.
+
+## Upstream provider rate limits
+
+These are **separate** from Composio's limits. When Composio calls Gmail, Slack, Google Ads, etc. on your behalf, that provider enforces *its own* limits and can return `429` / `RESOURCE_EXHAUSTED`. Composio surfaces those errors back to you.
+
+The most common cause of provider `429`s in production is **Composio's shared managed auth**: many organizations connect through the same shared OAuth app, so you share that app's rate-limit bucket with everyone else (Slack in particular throttles non-Marketplace apps aggressively).
+
+<Callout type="warn">
+For production and high-volume workloads, use **your own OAuth app** via a [custom auth config](/docs/custom-app-vs-managed-app) instead of Composio-managed auth. Your own app gets its own isolated bucket and the provider's full per-app limits. Managed auth is best for development and prototyping.
+</Callout>
+
+## High-volume and multi-tenant usage
+
+If you run a multi-tenant app, the recommended pattern is **one Composio account with a unique `userId` per end-user**, exactly the single-key fan-out many teams already use. You do **not** need per-tenant sub-accounts; that adds complexity without raising your limit.
+
+To scale throughput, **move to a higher plan** (which raises your per-org limit) and use your own OAuth apps for the providers you call heavily, rather than splitting into multiple accounts.
+
+## Need a higher limit?
+
+Per-organization limits can be raised. If you're approaching your ceiling, [reach out](https://calendly.com/composiohq/enterprise) and we'll find the right limit for your workload. Higher-volume and unlimited limits come with the Enterprise plan.
+
+## Reliability & SLA
+
+A formal uptime SLA, support-response commitments, and a dedicated escalation contact are part of the **Enterprise** plan; [talk to us](https://calendly.com/composiohq/enterprise) if you need them. For security and compliance details, see [trust.composio.dev](https://trust.composio.dev).
