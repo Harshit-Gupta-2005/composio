@@ -1,12 +1,17 @@
 ---
 title: Rate Limits
-description: Composio API rate limits by plan, rate limit headers, and best practices
-keywords: [API rate limits, rate limiting, throttling, 429 too many requests, API quotas, request limits]
+description: Composio API rate limits by plan, the headers to read, how to handle 429s, and how upstream provider limits differ
+keywords: [API rate limits, rate limiting, throttling, 429 too many requests, API quotas, request limits, suspension, multi-tenant, retry-after, x-ratelimit]
 ---
 
-Rate limits are enforced **per organization** on a fixed one-minute window (aligned to the start of each minute). Your live limit is always returned in the `X-RateLimit` header; the table below lists the current defaults.
+There are two independent kinds of rate limit when you use Composio:
 
-## Rate limits by plan
+1. **Composio platform limits**: how many requests your organization can make to the Composio API per minute.
+2. **Upstream provider limits**: limits the external service (Gmail, Slack, Google Ads, etc.) enforces on the calls Composio makes on your behalf.
+
+## Composio platform limits
+
+Rate limits are enforced **per organization** on a fixed one-minute window (aligned to the start of each minute), shared across all of your `userId`s, API keys, and endpoints. Your live limit is always returned in the `X-RateLimit` header; the table below lists the current defaults.
 
 | Plan | Rate Limit | Window |
 |------|------------|--------|
@@ -19,9 +24,9 @@ Rate limits are enforced **per organization** on a fixed one-minute window (alig
 All authenticated API endpoints share your organization's rate limit. This includes tool execution, connected accounts, triggers, and all other API operations.
 </Callout>
 
-## Rate limit headers
+### Rate limit headers
 
-API responses include headers to help you track your usage:
+Every response includes headers, so you never have to hardcode a number:
 
 | Header | Description |
 |--------|-------------|
@@ -30,9 +35,11 @@ API responses include headers to help you track your usage:
 | `X-RateLimit-Window-Size` | Window size (e.g., `60s` for 60 seconds) |
 | `Retry-After` | Seconds until the window resets (only on 429 responses) |
 
-## Rate limit response
+Treat these as the source of truth and drive your client off them.
 
-When you exceed the rate limit, you'll receive a `429 Too Many Requests` response:
+### When you exceed the limit
+
+You get an `HTTP 429 Too Many Requests` with a `Retry-After` header:
 
 ```json
 {
@@ -40,17 +47,53 @@ When you exceed the rate limit, you'll receive a `429 Too Many Requests` respons
 }
 ```
 
-## Best practices
+A `429` is a throttle, not a cutoff. The window auto-resets the next minute and you can continue; nothing about your account changes.
 
-1. **Monitor your usage** - Check the `X-RateLimit-Remaining` header to track how close you are to the limit.
+### Will I get suspended for going over?
 
-2. **Implement backoff** - When you receive a `429`, wait for the duration specified in `Retry-After` before retrying.
+<Callout type="info">
+**No.** Composio does not automatically suspend, review, or restrict accounts based on request volume, concurrency, or error rate. Exceeding your limit only returns `429` throttling that clears on the next minute. There is no automated abuse trigger.
+</Callout>
 
-3. **Cache responses** - Cache tool definitions and other static data to reduce unnecessary API calls.
+The only hard block is a manual action by our team in rare cases (e.g. confirmed abuse), which returns `HTTP 403` with `Organization temporarily blocked. Please contact technical support.` It is never automatic, and support is the path to resolve it.
+
+### Handling 429s
+
+- Honor `Retry-After` first; otherwise wait for the window (`X-RateLimit-Window-Size`); otherwise fall back to exponential backoff with jitter, capping retries (e.g. 5) before surfacing an error.
+- Watch `X-RateLimit-Remaining` and slow down before you hit zero.
+- Cache tool definitions and other static data, batch where you can, and avoid tight polling loops.
+
+```python
+import time, random
+
+def with_backoff(make_request, max_retries=5):
+    for attempt in range(max_retries):
+        resp = make_request()
+        if resp.status_code != 429:
+            return resp
+        retry_after = resp.headers.get("Retry-After")
+        delay = float(retry_after) if retry_after else min(2 ** attempt, 30) + random.random()
+        time.sleep(delay)
+    raise RuntimeError("Composio rate limit: retries exhausted")
+```
+
+## Upstream provider limits
+
+These are separate from Composio's limits. When Composio calls Gmail, Slack, Google Ads, etc. on your behalf, that provider enforces its own limits and can return `429` / `RESOURCE_EXHAUSTED`, which Composio surfaces back to you.
+
+The most common cause in production is **Composio's shared managed auth**: many organizations connect through the same shared OAuth app, so you share that app's rate-limit bucket (Slack in particular throttles non-Marketplace apps aggressively).
+
+<Callout type="warn">
+For production and high-volume workloads, use your own OAuth app via a [custom auth config](/docs/custom-app-vs-managed-app) instead of Composio-managed auth. Your own app gets its own isolated bucket and the provider's full per-app limits. Managed auth is best for development and prototyping.
+</Callout>
+
+## High-volume and multi-tenant usage
+
+For multi-tenant apps, the recommended pattern is one Composio account with a unique `userId` per end-user. You do not need per-tenant sub-accounts. To scale throughput, move to a higher plan (which raises your per-org limit) and use your own OAuth apps for the providers you call heavily.
 
 ## Need higher limits?
 
-If you're hitting rate limits regularly, consider upgrading your plan or [talk to us](https://calendly.com/composiohq/enterprise) to discuss custom limits for your use case.
+If you're hitting rate limits regularly, [talk to us](https://calendly.com/composiohq/enterprise) to discuss custom limits for your use case. Custom, higher-volume limits come with the Enterprise plan.
 
 <Cards>
   <Card title="Errors" href="/reference/v3/errors">
