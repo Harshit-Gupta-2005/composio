@@ -1,7 +1,7 @@
 ---
 title: Rate limits & usage
 description: How Composio's API rate limits work, the headers to read, how to handle 429s, how upstream provider limits differ, and what to do for high-volume multi-tenant usage.
-keywords: [rate limit, rate limits, 429, too many requests, retry-after, x-ratelimit, throttling, quota, suspension, account suspended, abuse, high volume, multi-tenant, sla, status]
+keywords: [rate limit, rate limits, "429", too many requests, retry-after, x-ratelimit, throttling, quota, suspension, account suspended, abuse, high volume, multi-tenant, sla, status]
 ---
 
 There are **two independent kinds of rate limit** when you use Composio, and most confusion comes from mixing them up:
@@ -35,7 +35,7 @@ These are the current **default** per-organization, per-minute ceilings. Your au
 | --- | --- |
 | Hobby / Starter | 2,000 |
 | Growth | 10,000 |
-| Enterprise | Effectively unlimited |
+| Enterprise | Custom |
 
 ### When you exceed the limit
 
@@ -98,7 +98,7 @@ To scale throughput, **move to a higher plan** (which raises your per-org limit)
 
 ## Need a higher limit?
 
-Per-organization limits can be raised. If you're approaching your ceiling, [reach out](https://calendly.com/composiohq/enterprise) and we'll find the right limit for your workload. Higher-volume and unlimited limits come with the Enterprise plan.
+Per-organization limits can be raised. If you're approaching your ceiling, [reach out](https://calendly.com/composiohq/enterprise) and we'll find the right limit for your workload. Custom, higher-volume limits come with the Enterprise plan.
 
 ## Reliability & SLA
 
