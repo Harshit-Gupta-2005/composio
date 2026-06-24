@@ -196,6 +196,215 @@ describe('sanitizeSchemaPropertyKeys', () => {
     const restored = restoreOriginalKeys({ pair: [{ dollar_top: 9 }, { plain: 'x' }] }, mapping);
     expect(restored).toEqual({ pair: [{ $top: 9 }, { plain: 'x' }] });
   });
+
+  // A key that is empty (or made entirely of stripped characters) would emit
+  // `''`, which still violates Anthropic's `{1,64}` length bound.
+  it('emits a non-empty conforming alias for empty / all-illegal keys', () => {
+    const schema = {
+      type: 'object',
+      properties: { '': { type: 'string' }, '@@@': { type: 'integer' } },
+    };
+
+    const { schema: out, mapping } = sanitizeSchemaPropertyKeys(schema);
+    const keys = Object.keys(out.properties as Record<string, unknown>);
+
+    expect(keys).toHaveLength(2);
+    keys.forEach(k => expect(k).toMatch(ANTHROPIC_KEY_RE)); // each ≥ 1 char and conforming
+    expect(new Set(Object.values(mapping.renames))).toEqual(new Set(['', '@@@']));
+  });
+
+  // Pathologically deep schemas must fail loudly rather than overflow the stack.
+  it('throws instead of overflowing the stack on deeply nested schemas', () => {
+    let deep: Record<string, unknown> = {
+      type: 'object',
+      properties: { $x: { type: 'integer' } },
+    };
+    for (let i = 0; i < 2000; i++) {
+      deep = { type: 'object', properties: { nested: deep } };
+    }
+
+    expect(() => sanitizeSchemaPropertyKeys(deep)).toThrow(/depth/i);
+  });
+
+  // Property keys that collide with `Object.prototype` member names must be
+  // treated as ordinary keys, never reparent the emitted schema, and never
+  // mutate `Object.prototype`. Built via JSON.parse so `__proto__` is a real
+  // own key rather than prototype-setting literal syntax.
+  it('treats prototype-member property names as ordinary keys', () => {
+    const schema = JSON.parse(
+      '{"type":"object","properties":{"$top":{"type":"integer"},"__proto__":{"type":"string"},"constructor":{"type":"string"}}}'
+    );
+
+    const { schema: out, mapping } = sanitizeSchemaPropertyKeys(schema);
+    const props = out.properties as Record<string, unknown>;
+
+    expect(Object.prototype.hasOwnProperty.call(props, '__proto__')).toBe(true);
+    expect(Object.prototype.hasOwnProperty.call(props, 'constructor')).toBe(true);
+    expect(props['constructor']).toEqual({ type: 'string' });
+    expect(({} as Record<string, unknown>).type).toBeUndefined(); // prototype untouched
+
+    const restored = restoreOriginalKeys({ dollar_top: 1, constructor: 'c' }, mapping) as Record<
+      string,
+      unknown
+    >;
+    expect(restored['$top']).toBe(1);
+    expect(restored['constructor']).toBe('c');
+  });
+});
+
+describe('sanitizeSchemaPropertyKeys composition coverage', () => {
+  // Asserts every emitted `properties` key (at any depth) conforms to Anthropic's
+  // pattern — i.e. nothing illegal slipped through the traversal and could 400.
+  const expectNoIllegalPropertyKeys = (schema: unknown) => {
+    const walk = (node: unknown): void => {
+      if (Array.isArray(node)) return node.forEach(walk);
+      if (!node || typeof node !== 'object') return;
+      const obj = node as Record<string, unknown>;
+      if (obj.properties && typeof obj.properties === 'object') {
+        for (const key of Object.keys(obj.properties as Record<string, unknown>)) {
+          expect(key).toMatch(ANTHROPIC_KEY_RE);
+        }
+      }
+      Object.values(obj).forEach(walk);
+    };
+    walk(schema);
+  };
+
+  it('sanitizes and restores illegal keys nested under `anyOf` branches', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        foo: {
+          anyOf: [
+            { type: 'object', properties: { $top: { type: 'integer' } }, required: ['$top'] },
+            { type: 'object', properties: { bar: { type: 'string' } } },
+          ],
+        },
+      },
+    };
+
+    const { schema: out, mapping } = sanitizeSchemaPropertyKeys(schema);
+    expectNoIllegalPropertyKeys(out);
+    expect((out.properties as any).foo.anyOf[0].properties).toHaveProperty('dollar_top');
+
+    // The branch rename folds into `foo`'s value level, so restoration finds it.
+    expect(restoreOriginalKeys({ foo: { dollar_top: 5 } }, mapping)).toEqual({ foo: { $top: 5 } });
+  });
+
+  it('merges `oneOf` / `allOf` renames into the shared value level', () => {
+    const oneOf = sanitizeSchemaPropertyKeys({
+      type: 'object',
+      oneOf: [{ properties: { $top: { type: 'integer' } } }, { properties: { plain: {} } }],
+    });
+    expectNoIllegalPropertyKeys(oneOf.schema);
+    expect(restoreOriginalKeys({ dollar_top: 1 }, oneOf.mapping)).toEqual({ $top: 1 });
+
+    const allOf = sanitizeSchemaPropertyKeys({
+      type: 'object',
+      properties: { keep: { type: 'string' } },
+      allOf: [{ properties: { '@odata.type': { type: 'string' } } }],
+    });
+    expectNoIllegalPropertyKeys(allOf.schema);
+    expect(restoreOriginalKeys({ 'at_odata.type': 'x', keep: 'y' }, allOf.mapping)).toEqual({
+      '@odata.type': 'x',
+      keep: 'y',
+    });
+  });
+
+  it('selects the right branch mapping by value type for a mixed `anyOf`', () => {
+    const { mapping } = sanitizeSchemaPropertyKeys({
+      type: 'object',
+      properties: {
+        field: {
+          anyOf: [
+            { type: 'array', items: { type: 'object', properties: { $top: { type: 'integer' } } } },
+            { type: 'object', properties: { $skip: { type: 'integer' } } },
+          ],
+        },
+      },
+    });
+
+    // Array value → array-branch (`items`) mapping; object value → object branch.
+    expect(restoreOriginalKeys({ field: [{ dollar_top: 1 }] }, mapping)).toEqual({
+      field: [{ $top: 1 }],
+    });
+    expect(restoreOriginalKeys({ field: { dollar_skip: 2 } }, mapping)).toEqual({
+      field: { $skip: 2 },
+    });
+  });
+
+  it('sanitizes (but does not restore) keys nested under `additionalProperties`', () => {
+    const schema = {
+      type: 'object',
+      properties: {},
+      additionalProperties: { type: 'object', properties: { $top: { type: 'integer' } } },
+    };
+
+    const { schema: out, mapping } = sanitizeSchemaPropertyKeys(schema);
+    // 400-prevention: the alias is emitted so Anthropic accepts the schema.
+    expect((out as any).additionalProperties.properties).toHaveProperty('dollar_top');
+    // Documented limitation: dynamic-key values are not restored — the alias
+    // reaches the backend rather than being silently (mis)mapped at every level.
+    expect(restoreOriginalKeys({ anyKey: { dollar_top: 1 } }, mapping)).toEqual({
+      anyKey: { dollar_top: 1 },
+    });
+  });
+
+  it('sanitizes keys nested under `$defs` for Anthropic acceptance', () => {
+    const { schema: out } = sanitizeSchemaPropertyKeys({
+      type: 'object',
+      properties: { x: { $ref: '#/$defs/Foo' } },
+      $defs: { Foo: { type: 'object', properties: { $top: { type: 'integer' } } } },
+    });
+
+    expectNoIllegalPropertyKeys(out);
+    expect((out as any).$defs.Foo.properties).toHaveProperty('dollar_top');
+  });
+
+  it('sanitizes and restores `prefixItems` tuples', () => {
+    const { schema: out, mapping } = sanitizeSchemaPropertyKeys({
+      type: 'object',
+      properties: {
+        pair: {
+          type: 'array',
+          prefixItems: [
+            { type: 'object', properties: { $top: { type: 'integer' } } },
+            { type: 'object', properties: { plain: { type: 'string' } } },
+          ],
+        },
+      },
+    });
+
+    expectNoIllegalPropertyKeys(out);
+    expect(restoreOriginalKeys({ pair: [{ dollar_top: 9 }, { plain: 'x' }] }, mapping)).toEqual({
+      pair: [{ $top: 9 }, { plain: 'x' }],
+    });
+  });
+
+  it('restores a `prefixItems` tuple and a trailing `items` rest schema independently', () => {
+    // 2020-12: `prefixItems` pins positions 0..n-1; a sibling single `items` schema
+    // applies to every element past the tuple. Both carry illegal keys that must
+    // round-trip at their own positions — the prefix rename must not be dropped,
+    // and the rest mapping must not bleed onto the prefix position.
+    const { schema: out, mapping } = sanitizeSchemaPropertyKeys({
+      type: 'object',
+      properties: {
+        tuple: {
+          type: 'array',
+          prefixItems: [{ type: 'object', properties: { $top: { type: 'integer' } } }],
+          items: { type: 'object', properties: { '@odata.type': { type: 'string' } } },
+        },
+      },
+    });
+
+    expectNoIllegalPropertyKeys(out);
+    expect(
+      restoreOriginalKeys(
+        { tuple: [{ dollar_top: 5 }, { 'at_odata.type': 'a' }, { 'at_odata.type': 'b' }] },
+        mapping
+      )
+    ).toEqual({ tuple: [{ $top: 5 }, { '@odata.type': 'a' }, { '@odata.type': 'b' }] });
+  });
 });
 
 describe('restoreOriginalKeys', () => {
@@ -252,6 +461,34 @@ describe('restoreOriginalKeys', () => {
       $top: 10, // root alias restored to the OData name
       filters: { dollar_top: 'keep-me' }, // nested genuine key left alone
     });
+  });
+
+  // Security: a model can emit argument keys equal to Object.prototype member
+  // names (and `__proto__` reaches restoration via the JSON-string input path).
+  // Restoration must not crash, must not corrupt the payload, and must never
+  // mutate Object.prototype — the reverse maps and result object are all
+  // prototype-free.
+  it('handles prototype-member keys in tool arguments without crashing or polluting', () => {
+    const { mapping } = sanitizeSchemaPropertyKeys({
+      type: 'object',
+      properties: { $top: { type: 'integer' }, name: { type: 'string' } },
+      required: ['$top'],
+    });
+
+    const input = JSON.parse(
+      '{"dollar_top":1,"constructor":{"inner":2},"toString":"t","__proto__":{"polluted":true},"hasOwnProperty":"h","name":"n"}'
+    );
+
+    // Threw with `TypeError` before this PR's hardening (lookups resolved to the
+    // inherited `Object` function); a plain assignment here would also fail.
+    const restored = restoreOriginalKeys(input, mapping) as Record<string, unknown>;
+
+    expect(restored['$top']).toBe(1);
+    expect(restored['name']).toBe('n');
+    expect(restored['toString']).toBe('t');
+    expect(restored['hasOwnProperty']).toBe('h');
+    expect((restored['constructor'] as Record<string, unknown>).inner).toBe(2);
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined(); // prototype untouched
   });
 });
 
@@ -380,5 +617,76 @@ describe('AnthropicProvider key sanitization', () => {
 
     const [, payload] = executeToolFn.mock.calls[0];
     expect(payload.arguments).toEqual({ query: 'hello' });
+  });
+
+  // Re-wrapping the same slug with a schema that no longer needs rewriting must
+  // clear the stale mapping, so a later execution does not restore keys that the
+  // current schema never sanitized.
+  it('clears a stale key mapping when a slug is re-wrapped with a clean schema', async () => {
+    const provider = new AnthropicProvider();
+    const executeToolFn = vi
+      .fn()
+      .mockResolvedValue({ data: { ok: true }, error: null, successful: true });
+    provider._setExecuteToolFn(executeToolFn);
+
+    // First wrap registers a `dollar_top -> $top` mapping for this slug.
+    provider.wrapTool(odataTool);
+
+    // Re-wrap the SAME slug with a schema that has no illegal keys.
+    const cleanedTool: Tool = {
+      ...odataTool,
+      inputParameters: { type: 'object', properties: { dollar_top: { type: 'integer' } } },
+    } as unknown as Tool;
+    provider.wrapTool(cleanedTool);
+
+    // The model now legitimately sends `dollar_top`; it must reach the backend
+    // unchanged rather than being restored to `$top` by the stale mapping.
+    await provider.executeToolCall('user-1', {
+      type: 'tool_use',
+      id: 'tu_5',
+      name: odataTool.slug,
+      input: { dollar_top: 7 },
+    });
+
+    const [, payload] = executeToolFn.mock.calls[0];
+    expect(payload.arguments).toEqual({ dollar_top: 7 });
+  });
+
+  // `wrapTool` dereferences `$ref`/`$defs` before sanitizing, so an illegal key
+  // reachable only through a reference is both made compliant for Anthropic and
+  // restored to its original name at execution time.
+  it('dereferences $ref so $ref-nested illegal keys round-trip', async () => {
+    const provider = new AnthropicProvider();
+    const executeToolFn = vi
+      .fn()
+      .mockResolvedValue({ data: { ok: true }, error: null, successful: true });
+    provider._setExecuteToolFn(executeToolFn);
+
+    const refTool: Tool = {
+      slug: 'ref-tool',
+      name: 'Ref',
+      description: 'uses $ref into $defs',
+      inputParameters: {
+        type: 'object',
+        properties: { filter: { $ref: '#/$defs/Filter' } },
+        $defs: { Filter: { type: 'object', properties: { $top: { type: 'integer' } } } },
+      },
+      tags: [],
+    } as unknown as Tool;
+
+    const wrapped = provider.wrapTool(refTool) as AnthropicTool;
+    // The $ref is inlined, `$defs` removed, and the nested `$top` sanitized.
+    expect((wrapped.input_schema.properties as any).filter.properties).toHaveProperty('dollar_top');
+    expect((wrapped.input_schema as any).$defs).toBeUndefined();
+
+    await provider.executeToolCall('user-1', {
+      type: 'tool_use',
+      id: 'tu_ref',
+      name: 'ref-tool',
+      input: { filter: { dollar_top: 3 } },
+    });
+
+    const [, payload] = executeToolFn.mock.calls[0];
+    expect(payload.arguments).toEqual({ filter: { $top: 3 } });
   });
 });
