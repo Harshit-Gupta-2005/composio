@@ -53,6 +53,8 @@ import { ComposioConfig } from '../composio';
 import { BaseComposioProvider } from '../provider/BaseProvider';
 import { hmacSha256Base64, timingSafeEqual } from '../utils/crypto';
 import { CONFIG_DEFAULTS } from '../utils/config-defaults';
+import { ComposioRequestOptions } from '../types/requestOptions.types';
+import { withCancellation } from '../utils/cancellation';
 
 /**
  * Safely converts a value to a string, returning the default if the value is null, undefined, or empty.
@@ -102,7 +104,8 @@ export class Triggers<TProvider extends BaseComposioProvider<unknown, unknown, u
    * ```
    */
   async listActive(
-    query?: TriggerInstanceListActiveParams
+    query?: TriggerInstanceListActiveParams,
+    requestOptions?: ComposioRequestOptions
   ): Promise<TriggerInstanceListActiveResponse> {
     // Validate the parameters if provided
 
@@ -114,18 +117,20 @@ export class Triggers<TProvider extends BaseComposioProvider<unknown, unknown, u
       });
     }
 
-    const result = await this.client.triggerInstances.listActive(
-      query
-        ? {
-            auth_config_ids: parsedParams.data.authConfigIds,
-            connected_account_ids: parsedParams.data.connectedAccountIds,
-            cursor: parsedParams.data.cursor,
-            limit: parsedParams.data.limit,
-            show_disabled: parsedParams.data.showDisabled,
-            trigger_ids: parsedParams.data.triggerIds,
-            trigger_names: parsedParams.data.triggerNames,
-          }
-        : undefined
+    const listParams = query
+      ? {
+          auth_config_ids: parsedParams.data.authConfigIds,
+          connected_account_ids: parsedParams.data.connectedAccountIds,
+          cursor: parsedParams.data.cursor,
+          limit: parsedParams.data.limit,
+          show_disabled: parsedParams.data.showDisabled,
+          trigger_ids: parsedParams.data.triggerIds,
+          trigger_names: parsedParams.data.triggerNames,
+        }
+      : undefined;
+    const result = await withCancellation(
+      () => this.client.triggerInstances.listActive(listParams, requestOptions),
+      requestOptions?.signal
     );
     return transformTriggerInstanceListActiveResponse(result);
   }
@@ -142,7 +147,8 @@ export class Triggers<TProvider extends BaseComposioProvider<unknown, unknown, u
   async create(
     userId: string,
     slug: string,
-    body?: TriggerInstanceUpsertParams
+    body?: TriggerInstanceUpsertParams,
+    requestOptions?: ComposioRequestOptions
   ): Promise<TriggerInstanceUpsertResponse> {
     const parsedBody = TriggerInstanceUpsertParamsSchema.safeParse(body ?? {});
 
@@ -156,7 +162,7 @@ export class Triggers<TProvider extends BaseComposioProvider<unknown, unknown, u
     let triggerType: TriggersTypeRetrieveResponse;
     let toolkitSlug: string;
     try {
-      triggerType = await this.getType(slug);
+      triggerType = await this.getType(slug, requestOptions);
       toolkitSlug = triggerType.toolkit.slug;
     } catch (error) {
       // for some reason, the triggers types list endpoint returns 400 for invalid user ids
@@ -178,10 +184,14 @@ export class Triggers<TProvider extends BaseComposioProvider<unknown, unknown, u
     let connectedAccountId: string | undefined = body?.connectedAccountId;
 
     try {
-      const { items: connectedAccounts } = await this.client.connectedAccounts.list({
+      const connectedAccountListParams = {
         user_ids: [userId],
         toolkit_slugs: [toolkitSlug],
-      });
+      };
+      const { items: connectedAccounts } = await withCancellation(
+        () => this.client.connectedAccounts.list(connectedAccountListParams, requestOptions),
+        requestOptions?.signal
+      );
 
       if (connectedAccounts.length === 0) {
         throw new ComposioConnectedAccountNotFoundError(
@@ -242,8 +252,10 @@ export class Triggers<TProvider extends BaseComposioProvider<unknown, unknown, u
       toolkit_versions: this.toolkitVersions,
       user_id: userId,
     };
-
-    const result = await this.client.triggerInstances.upsert(slug, upsertParams);
+    const result = await withCancellation(
+      () => this.client.triggerInstances.upsert(slug, upsertParams, requestOptions),
+      requestOptions?.signal
+    );
 
     return {
       triggerId: result.trigger_id,
@@ -259,9 +271,13 @@ export class Triggers<TProvider extends BaseComposioProvider<unknown, unknown, u
    */
   async update(
     triggerId: string,
-    body: TriggerInstanceManageUpdateParams
+    body: TriggerInstanceManageUpdateParams,
+    requestOptions?: ComposioRequestOptions
   ): Promise<TriggerInstanceManageUpdateResponse> {
-    return this.client.triggerInstances.manage.update(triggerId, body);
+    return withCancellation(
+      () => this.client.triggerInstances.manage.update(triggerId, body, requestOptions),
+      requestOptions?.signal
+    );
   }
 
   /**
@@ -270,8 +286,14 @@ export class Triggers<TProvider extends BaseComposioProvider<unknown, unknown, u
    * @param {string} triggerId - The slug of the trigger instance
    * @returns
    */
-  async delete(triggerId: string): Promise<TriggerInstanceManageDeleteResponse> {
-    const result = await this.client.triggerInstances.manage.delete(triggerId);
+  async delete(
+    triggerId: string,
+    requestOptions?: ComposioRequestOptions
+  ): Promise<TriggerInstanceManageDeleteResponse> {
+    const result = await withCancellation(
+      () => this.client.triggerInstances.manage.delete(triggerId, requestOptions),
+      requestOptions?.signal
+    );
     return {
       triggerId: result.trigger_id,
     };
@@ -283,10 +305,12 @@ export class Triggers<TProvider extends BaseComposioProvider<unknown, unknown, u
    * @param {string} triggerId - The id of the trigger instance
    * @returns {Promise<TriggerInstanceUpsertResponse>} The updated trigger instance
    */
-  async disable(triggerId: string) {
-    return this.client.triggerInstances.manage.update(triggerId, {
-      status: 'disable',
-    });
+  async disable(triggerId: string, requestOptions?: ComposioRequestOptions) {
+    const body = { status: 'disable' as const };
+    return withCancellation(
+      () => this.client.triggerInstances.manage.update(triggerId, body, requestOptions),
+      requestOptions?.signal
+    );
   }
 
   /**
@@ -295,10 +319,12 @@ export class Triggers<TProvider extends BaseComposioProvider<unknown, unknown, u
    * @param {string} triggerId - The id of the trigger instance
    * @returns {Promise<TriggerInstanceUpsertResponse>} The updated trigger instance
    */
-  async enable(triggerId: string) {
-    return this.client.triggerInstances.manage.update(triggerId, {
-      status: 'enable',
-    });
+  async enable(triggerId: string, requestOptions?: ComposioRequestOptions) {
+    const body = { status: 'enable' as const };
+    return withCancellation(
+      () => this.client.triggerInstances.manage.update(triggerId, body, requestOptions),
+      requestOptions?.signal
+    );
   }
 
   /**
@@ -311,17 +337,24 @@ export class Triggers<TProvider extends BaseComposioProvider<unknown, unknown, u
    * @param {RequestOptions} options - Request options
    * @returns {Promise<TriggersTypeListResponse>} The list of trigger types
    */
-  async listTypes(query?: TriggersTypeListParams): Promise<TriggersTypeListResponse> {
+  async listTypes(
+    query?: TriggersTypeListParams,
+    requestOptions?: ComposioRequestOptions
+  ): Promise<TriggersTypeListResponse> {
     const parsedQuery = transform(query ?? {})
       .with(TriggersTypeListParamsSchema)
       .using(raw => raw);
 
-    const result = await this.client.triggersTypes.list({
+    const listParams = {
       cursor: parsedQuery.cursor,
       limit: parsedQuery.limit,
       toolkit_slugs: parsedQuery.toolkits,
       toolkit_versions: this.toolkitVersions,
-    });
+    };
+    const result = await withCancellation(
+      () => this.client.triggersTypes.list(listParams, requestOptions),
+      requestOptions?.signal
+    );
 
     return transformTriggerTypeListResponse(result);
   }
@@ -333,11 +366,18 @@ export class Triggers<TProvider extends BaseComposioProvider<unknown, unknown, u
    * @param {string} slug - The slug of the trigger type
    * @returns {Promise<TriggersTypeRetrieveResponse>} The trigger type object
    */
-  async getType(slug: string): Promise<TriggersTypeRetrieveResponse> {
-    const result = await this.client.triggersTypes.retrieve(slug, {
+  async getType(
+    slug: string,
+    requestOptions?: ComposioRequestOptions
+  ): Promise<TriggersTypeRetrieveResponse> {
+    const retrieveParams = {
       // if the version is provided override the global version
       toolkit_versions: this.toolkitVersions,
-    });
+    };
+    const result = await withCancellation(
+      () => this.client.triggersTypes.retrieve(slug, retrieveParams, requestOptions),
+      requestOptions?.signal
+    );
     return transformTriggerTypeRetrieveResponse(result);
   }
 
@@ -347,8 +387,13 @@ export class Triggers<TProvider extends BaseComposioProvider<unknown, unknown, u
    * This method is used by the CLI where filters are not required.
    * @returns
    */
-  async listEnum(): Promise<TriggersTypeRetrieveEnumResponse> {
-    return this.client.triggersTypes.retrieveEnum();
+  async listEnum(
+    requestOptions?: ComposioRequestOptions
+  ): Promise<TriggersTypeRetrieveEnumResponse> {
+    return withCancellation(
+      () => this.client.triggersTypes.retrieveEnum(requestOptions),
+      requestOptions?.signal
+    );
   }
 
   /**
