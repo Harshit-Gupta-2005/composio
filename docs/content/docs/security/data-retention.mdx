@@ -1,7 +1,7 @@
 ---
 title: Data retention
 description: What Composio stores from your tool calls, how long it is kept, how to stop storing payloads, and where your data flows.
-keywords: [data retention, log storage, privacy, dont store data, sub-processors, data flow]
+keywords: [data retention, log storage, privacy, dont store data, sub-processors, data flow, file ttl]
 ---
 
 Composio stores an audit log of tool executions so you can observe and debug your agents. You control how much of each call is stored, and you can choose not to store the payloads at all.
@@ -23,6 +23,10 @@ Trigger events are logged similarly.
 
 Tool execution logs and trigger event logs are retained for up to **one year**, after which they are automatically deleted.
 
+## How long files are available
+
+When a tool returns a file (an image, document, export, and so on), Composio shares it as a presigned URL with a time-to-live (TTL) rather than storing the file indefinitely. The default TTL is **1 hour**, and once it expires the URL stops resolving. You can change the file TTL per project — from **1 hour up to 24 hours** — in **Settings → General → File TTL**. This is separate from the Log storage setting and from the one-year log retention above.
+
 ## Choose what we store: the Log storage setting
 
 You control how much of each call is stored, per project, in **Settings → General → Log storage**:
@@ -37,6 +41,15 @@ With **Don't store data**, Composio keeps an audit trail but does not retain you
 <Callout type="info">
 To enable: open the Dashboard, choose your project, go to **Settings → General → Log storage**, and select **Don't store data**.
 </Callout>
+
+### Changing the setting takes effect going forward
+
+Log storage behaves like a pause/resume switch — it only affects calls made **after** you change it:
+
+- Selecting **Don't store data** stops Composio from storing payloads for new calls. It does **not** delete payloads that were already stored: existing logs stay available until they age out under the one-year retention window.
+- Selecting **Store all logs** again resumes storing payloads for new calls. It does **not** backfill the period while storage was off.
+
+Toggling off and back on therefore leaves a gap — payloads for the calls made while it was off were never stored, and turning storage back on does not recover them.
 
 ## Where your data goes
 
