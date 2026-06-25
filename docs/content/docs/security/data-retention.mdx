@@ -57,7 +57,8 @@ Choosing **Don't store data** stops Composio from persisting your payloads, but 
 
 - the **destination provider** you integrate with, which the tool call is made to;
 - **Composio's execution path** while the call runs;
-- **object storage** for file payloads, and your configured **trigger destinations**, delivered in real time;
+- **object storage** for files returned by tool calls, held only for the file TTL (1 hour by default — see [How long files are available](#how-long-files-are-available)) and then expired;
+- your configured **trigger destinations**, which receive trigger events in real time;
 - if you use the **workbench** or code execution, an isolated **code sandbox** and a **third-party model provider** that powers it.
 
 So "Don't store data" controls what Composio retains, not whether data is processed during execution. For the current list of our sub-processors and our data-handling terms, see the [Composio Trust Center](https://trust.composio.dev/subprocessors).
