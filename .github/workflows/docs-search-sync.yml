@@ -18,13 +18,18 @@ permissions:
 jobs:
   sync-search:
     runs-on: ubuntu-latest
+    # The Algolia admin key is stored as an environment secret, not a repo
+    # secret. Declaring the environment is what exposes `secrets.*` (and any
+    # env-scoped `vars.*`) to this job — without it the key resolves empty and
+    # the sync silently skips.
+    environment: Production
     defaults:
       run:
         working-directory: ./docs
     env:
       ALGOLIA_APP_ID: ${{ vars.ALGOLIA_APP_ID || '62HI9PQZ1L' }}
       ALGOLIA_ADMIN_API_KEY: ${{ secrets.ALGOLIA_ADMIN_API_KEY }}
-      ALGOLIA_INDEX_NAME: ${{ vars.ALGOLIA_INDEX_NAME || 'docs_composio_dev_62hi9pqz1l_pages' }}
+      ALGOLIA_INDEX_NAME: ${{ vars.ALGOLIA_INDEX_NAME || 'docs_composio' }}
 
     steps:
       - name: Checkout repository
