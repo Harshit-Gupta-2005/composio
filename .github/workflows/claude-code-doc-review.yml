@@ -41,11 +41,11 @@ jobs:
         # Optional: Specify model (defaults to Claude Sonnet 4, uncomment for Claude Opus 4)
         # model: "claude-opus-4-20250514"
 
-        # Review instructions in docs/.claude/agents/docs-reviewer.md
+        # Review instructions in docs/agent-guidance/agents/docs-reviewer.md
         prompt: |
-          Review this PR using the guidelines in docs/.claude/agents/docs-reviewer.md
+          Review this PR using the guidelines in docs/agent-guidance/agents/docs-reviewer.md
 
-          1. Read docs/.claude/agents/docs-reviewer.md for full review criteria
+          1. Read docs/agent-guidance/agents/docs-reviewer.md for full review criteria
           2. Run `git diff origin/${{ github.event.pull_request.base.ref }}...HEAD` to see changes
           3. Apply the review checklist to changed files
           4. If issues: Comment with specific fixes. If none: Approve with "Looks good"
