@@ -22,6 +22,7 @@ import {
   ToolRouterSessionWarning,
   ToolRouterUpdateSessionConfig,
   ToolRouterUpdateSessionConfigSchema,
+  type ToolRouterSessionDeleteResponse,
 } from '../types/toolRouter.types';
 import {
   transformSearchResponse,
@@ -71,6 +72,7 @@ import {
 import { transformProxyParams } from './proxyParamsTransform';
 import { inlineCustomToolsExperimental } from './inlineCustomToolsPayload';
 import { transformToolRouterUpdateParams } from '../lib/toolRouterParams';
+import { deleteToolRouterSession } from '../lib/toolRouterSessionDelete';
 
 const COMPOSIO_MULTI_EXECUTE_TOOL = 'COMPOSIO_MULTI_EXECUTE_TOOL';
 export const DIRECT_CUSTOM_TOOL_DESCRIPTION_PREFIX =
@@ -645,6 +647,16 @@ export class ToolRouterSession<
     this.preload = response.config.preload;
     this.sandbox = response.config.workbench;
     this.warnings = response.warnings ?? [];
+  }
+
+  /**
+   * Delete this session.
+   *
+   * Deleted sessions immediately stop being retrievable or executable. Deleting
+   * an already-deleted session surfaces the backend 404.
+   */
+  async delete(requestOptions?: ComposioRequestOptions): Promise<ToolRouterSessionDeleteResponse> {
+    return deleteToolRouterSession(this.client, this.sessionId, requestOptions);
   }
 
   // ── Private helpers ──────────────────────────────────────────

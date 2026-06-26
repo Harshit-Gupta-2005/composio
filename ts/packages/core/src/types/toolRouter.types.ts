@@ -2,6 +2,7 @@ import z from 'zod/v3';
 import type { BaseComposioProvider } from '../provider/BaseProvider';
 import { SessionMetaToolOptions } from './modifiers.types';
 import { ConnectionRequest } from './connectionRequest.types';
+import type { ComposioRequestOptions } from './requestOptions.types';
 import type { ToolRouterSessionFilesMount } from '../models/ToolRouterSessionFileMount';
 import type { SessionCreateResponse } from '@composio/client/resources/tool-router/session/session.mjs';
 import type {
@@ -700,6 +701,16 @@ export type ToolRouterUpdateSessionConfig = z.infer<typeof ToolRouterUpdateSessi
 
 export type ToolRouterSessionUpdateFn = (config: ToolRouterUpdateSessionConfig) => Promise<void>;
 
+export const ToolRouterSessionDeleteResponseSchema = z.object({
+  sessionId: z.string(),
+  deleted: z.literal(true),
+});
+export type ToolRouterSessionDeleteResponse = z.infer<typeof ToolRouterSessionDeleteResponseSchema>;
+
+export type ToolRouterSessionDeleteFn = (
+  requestOptions?: ComposioRequestOptions
+) => Promise<ToolRouterSessionDeleteResponse>;
+
 /** Session type returned by ToolRouter.create() and ToolRouter.use() */
 export interface Session<
   TToolCollection,
@@ -735,6 +746,8 @@ export interface Session<
   execute: ToolRouterSessionExecuteFn;
   /** Update the session configuration. Mutates this session in-place. */
   update: ToolRouterSessionUpdateFn;
+  /** Delete the session. Deleted sessions are no longer retrievable or executable. */
+  delete: ToolRouterSessionDeleteFn;
   /** Proxy an API call through Composio's auth layer using the session's connected account */
   proxyExecute: ToolRouterSessionProxyExecuteFn;
   /** List custom tools registered in this session, with their final slugs and schemas */
