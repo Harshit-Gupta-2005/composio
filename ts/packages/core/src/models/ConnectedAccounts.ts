@@ -13,6 +13,7 @@ import {
   ConnectedAccountRefreshResponse,
   ConnectedAccountUpdateStatusParams,
   ConnectedAccountUpdateStatusResponse,
+  ConnectedAccountPatchResponse,
   ConnectedAccountListParams as ConnectedAccountListParamsRaw,
   ConnectedAccountCreateParams as ConnectedAccountCreateParamsRaw,
 } from '@composio/client/resources/connected-accounts';
@@ -28,12 +29,17 @@ import {
   ConnectedAccountStatuses,
   ConnectedAccountRefreshOptions,
   ConnectedAccountRefreshOptionsSchema,
+  UpdateConnectedAccountAclParams,
   UpdateConnectedAccountParams,
   UpdateConnectedAccountParamsSchema,
 } from '../types/connectedAccounts.types';
 import { ConnectionRequest } from '../types/connectionRequest.types';
 import { createConnectionRequest } from './ConnectionRequest';
-import { ACL_ONLY_FOR_SHARED_ERROR_FRAGMENT, serializeExperimentalForWire } from './Experimental';
+import {
+  ACL_ONLY_FOR_SHARED_ERROR_FRAGMENT,
+  serializeExperimentalForWire,
+  updateConnectedAccountAcl,
+} from './Experimental';
 import { ValidationError } from '../errors/ValidationErrors';
 import { telemetry } from '../telemetry/Telemetry';
 import {
@@ -337,7 +343,7 @@ export class ConnectedAccounts {
    *
    * @param userId {string} - The external user ID to create the connected account for.
    * @param authConfigId {string} - The auth config ID to create the connected account for.
-   * @param options {CreateConnectedAccountOptions} - Options for creating a new connected account.
+   * @param options {CreateConnectedAccountLinkOptions} - Options for creating a new connected account link.
    * @param options.callbackUrl {string} - The url to redirect the user to post connecting their account.
    * @returns {ConnectionRequest} Connection request object
    *
@@ -378,6 +384,8 @@ export class ConnectedAccounts {
       });
     }
 
+    const opts = parsedLinkOptions.data;
+
     // Mirror initiate(): guard against silently creating extra connections on
     // the same auth config unless the caller explicitly opts in. The preflight
     // list call honors the caller's signal too — the whole composite is
@@ -390,7 +398,7 @@ export class ConnectedAccounts {
       },
       requestOptions
     );
-    if (existing.items.length > 0 && !parsedLinkOptions.data.allowMultiple) {
+    if (existing.items.length > 0 && !opts.allowMultiple) {
       throw new ComposioMultipleConnectedAccountsError(
         `Multiple connected accounts found for user ${userId} in auth config ${authConfigId}. Please use the allowMultiple option to allow multiple connected accounts.`
       );
@@ -400,7 +408,6 @@ export class ConnectedAccounts {
       );
     }
 
-    const opts = parsedLinkOptions.data;
     const experimentalWire = serializeExperimentalForWire(opts.experimental);
     const body: LinkCreateParams = {
       auth_config_id: authConfigId,
@@ -657,10 +664,46 @@ export class ConnectedAccounts {
   }
 
   /**
+   * Update the per-user ACL on a SHARED connected account.
+   * **Experimental — shape may change in future releases.**
+   *
+   * Only meaningful for SHARED connections — calling this on a PRIVATE
+   * connection raises `ComposioAclOnlyForSharedError` (400). ACL writes
+   * require the connection's creator or an API key.
+   *
+   * PATCH semantics: omit a field to leave it unchanged; pass an empty
+   * array to clear an allow/deny list. At least one field must be
+   * provided.
+   *
+   * @param {string} nanoid - The unique identifier of the connected account
+   * @param {UpdateConnectedAccountAclParams} params - The ACL fields to patch
+   * @returns {Promise<ConnectedAccountPatchResponse>} The PATCH response
+   *
+   * @example
+   * ```typescript
+   * // Allow every userId to use this SHARED connection
+   * await composio.connectedAccounts.updateAcl('ca_abc123', { allowAllUsers: true });
+   *
+   * // Targeted allow list
+   * await composio.connectedAccounts.updateAcl('ca_abc123', {
+   *   allowedUserIds: ['user_alice', 'user_bob'],
+   * });
+   *
+   * // Clear the allow list (back to deny-by-default unless allowAllUsers is true)
+   * await composio.connectedAccounts.updateAcl('ca_abc123', { allowedUserIds: [] });
+   * ```
+   */
+  async updateAcl(
+    nanoid: string,
+    params: UpdateConnectedAccountAclParams
+  ): Promise<ConnectedAccountPatchResponse> {
+    return updateConnectedAccountAcl(this.client, nanoid, params);
+  }
+
+  /**
    * Enable or disable a connected account. Accepts `{ enabled: boolean }`.
    *
-   * For ACL writes on SHARED connections, see
-   * `composio.experimental.updateAcl()`.
+   * Use `updateAcl()` for ACL writes on SHARED connections.
    *
    * @param {string} nanoid - The unique identifier of the connected account
    * @param {UpdateConnectedAccountParams} params - The update parameters

@@ -22,8 +22,10 @@ from composio.core.models.tool_router import (
 )
 from composio.core.models.tool_router_session import (
     DIRECT_CUSTOM_TOOL_DESCRIPTION_PREFIX,
+    ToolRouterSession,
+    ToolRouterSessionWithMcp,
 )
-from composio.exceptions import ValidationError
+from composio.exceptions import InvalidParams, ValidationError
 
 experimental_api = ExperimentalAPI()
 
@@ -134,6 +136,39 @@ class TestToolRouter:
 
         # Verify API was called
         mock_client.tool_router.session.create.assert_called_once()
+
+    def test_create_session_default_returns_base_session(self, tool_router):
+        """Default create() (mcp omitted) returns the base ToolRouterSession.
+
+        MCP is opt-in: the type must NOT be the mcp-surfacing subclass.
+        """
+        session = tool_router.create(user_id="user_123")
+
+        assert type(session) is ToolRouterSession
+        assert not isinstance(session, ToolRouterSessionWithMcp)
+
+    def test_create_session_with_mcp_true_returns_with_mcp(self, tool_router):
+        """create(..., mcp=True) returns ToolRouterSessionWithMcp with mcp surfaced."""
+        session = tool_router.create(user_id="user_123", mcp=True)
+
+        assert isinstance(session, ToolRouterSessionWithMcp)
+        # The MCP endpoint is populated on the runtime object either way.
+        assert session.mcp.type == ToolRouterMCPServerType.HTTP
+        assert session.mcp.url == "https://mcp.example.com/session_123"
+
+    def test_use_session_default_returns_base_session(self, tool_router):
+        """Default use() (mcp omitted) returns the base ToolRouterSession."""
+        session = tool_router.use("session_123")
+
+        assert type(session) is ToolRouterSession
+        assert not isinstance(session, ToolRouterSessionWithMcp)
+
+    def test_use_session_with_mcp_true_returns_with_mcp(self, tool_router):
+        """use(..., mcp=True) returns ToolRouterSessionWithMcp."""
+        session = tool_router.use("session_123", mcp=True)
+
+        assert isinstance(session, ToolRouterSessionWithMcp)
+        assert session.mcp.url == "https://mcp.example.com/session_123"
 
     def test_create_session_with_toolkits_list(self, tool_router, mock_client):
         """Test creating a session with toolkits as a list."""
@@ -516,8 +551,44 @@ class TestToolRouter:
             "slack": ["ca_yyy"],
         }
 
+    def test_create_session_with_sandbox_config(self, tool_router, mock_client):
+        """Test creating a session with preferred sandbox configuration."""
+        session = tool_router.create(
+            user_id="user_123",
+            sandbox={
+                "enable_proxy_execution": False,
+                "auto_offload_threshold": 300,
+                "sandbox_size": "large",
+            },
+        )
+
+        assert session.session_id == "session_123"
+
+        call_args = mock_client.tool_router.session.create.call_args
+        kwargs = call_args.kwargs
+        assert "workbench" in kwargs
+        assert kwargs["workbench"] == {
+            "enable": True,
+            "enable_proxy_execution": False,
+            "auto_offload_threshold": 300,
+            "sandbox_size": "large",
+        }
+
+    def test_create_session_rejects_sandbox_and_workbench(
+        self, tool_router, mock_client
+    ):
+        """Test creating a session rejects both sandbox and workbench."""
+        with pytest.raises(InvalidParams):
+            tool_router.create(
+                user_id="user_123",
+                sandbox={"enable": True},
+                workbench={"enable": True},
+            )
+
+        mock_client.tool_router.session.create.assert_not_called()
+
     def test_create_session_with_workbench_config(self, tool_router, mock_client):
-        """Test creating a session with workbench configuration."""
+        """Test creating a session with backwards-compatible workbench configuration."""
         session = tool_router.create(
             user_id="user_123",
             workbench={"enable_proxy_execution": False, "auto_offload_threshold": 300},

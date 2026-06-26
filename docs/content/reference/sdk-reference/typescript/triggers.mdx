@@ -196,6 +196,116 @@ async listTypes(query?: TriggersTypeListParams, requestOptions?: ComposioRequest
 
 ---
 
+### parse()
+
+Parse an incoming webhook HTTP request into a typed, normalized trigger payload.
+
+Dump the incoming request in and get back the parsed Composio trigger event.
+When `verifySecret` is provided, the request signature is verified before the
+payload is returned (delegating to verifyWebhook); without it, the body
+is parsed without verification.
+
+The `request` may be either a Fetch API `Request` (Next.js App Router, Hono,
+Remix) or a plain `{ body, headers }` object (Express with `express.raw`,
+Next.js Pages Router `req`). The signature headers (`webhook-id`,
+`webhook-timestamp`, `webhook-signature`) are read case-insensitively.
+
+```typescript
+async parse(request: WebhookRequestLike, options?: ParseWebhookOptions): Promise<VerifyWebhookResult>
+```
+
+**Parameters**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `request` | `WebhookRequestLike` | The incoming webhook HTTP request |
+| `options?` | `ParseWebhookOptions` | Parse options |
+
+**Returns**
+
+`Promise<VerifyWebhookResult>` — The parsed (and optionally verified) webhook payload
+
+**Example**
+
+```typescript
+// Express with express.raw (verify the signature)
+app.post('/webhooks/composio', express.raw({ type: 'application/json' }), async (req, res) => {
+  try {
+    const result = await composio.triggers.parse(req, {
+      verifySecret: process.env.COMPOSIO_WEBHOOK_SECRET,
+    });
+    console.log('Trigger:', result.payload.triggerSlug);
+    console.log('Event data:', result.payload.payload);
+    res.sendStatus(200);
+  } catch (error) {
+    res.sendStatus(401);
+  }
+});
+
+// Express without verifying (parse only)
+app.post('/webhooks/composio', express.raw({ type: 'application/json' }), async (req, res) => {
+  const result = await composio.triggers.parse(req);
+  console.log('Trigger:', result.payload.triggerSlug);
+  res.sendStatus(200);
+});
+```
+
+```typescript
+// Next.js App Router (Request) — verify the signature
+export async function POST(request: Request) {
+  try {
+    const result = await composio.triggers.parse(request, {
+      verifySecret: process.env.COMPOSIO_WEBHOOK_SECRET,
+    });
+    console.log('Trigger:', result.payload.triggerSlug);
+    console.log('Event data:', result.payload.payload);
+    return new Response('OK', { status: 200 });
+  } catch (error) {
+    return new Response('Unauthorized', { status: 401 });
+  }
+}
+
+// Next.js App Router — parse only (no verification)
+export async function POST(request: Request) {
+  const result = await composio.triggers.parse(request);
+  console.log('Trigger:', result.payload.triggerSlug);
+  return new Response('OK', { status: 200 });
+}
+```
+
+---
+
+### setWebhookSubscription()
+
+Create or update the project webhook subscription used for webhook delivery.
+
+If a subscription already exists, the first subscription is updated. Otherwise a new
+subscription is created. By default this subscribes to V3 trigger message events.
+
+```typescript
+async setWebhookSubscription(params: SetWebhookSubscriptionParams): Promise<WebhookSubscription>
+```
+
+**Parameters**
+
+| Name | Type |
+|------|------|
+| `params` | `SetWebhookSubscriptionParams` |
+
+**Returns**
+
+`Promise<WebhookSubscription>`
+
+**Example**
+
+```typescript
+await composio.triggers.setWebhookSubscription({
+  webhookUrl: `${APP_URL}/webhooks/composio`,
+});
+```
+
+---
+
 ### subscribe()
 
 Subscribe to all the triggers

@@ -10,12 +10,15 @@ packages:
   - ts/packages/cli-keyring
   - ts/packages/cli-local-tools
   - ts/packages/core
+  - ts/packages/experimental
   - ts/packages/json-schema-to-zod
+  - ts/packages/slim
   - ts/packages/providers/*
   - ts/packages/ts-builders
   - ts/packages/wrappers/*
 
 allowBuilds:
+  '@google/genai': false
   '@parcel/watcher': true
   esbuild: true
   msgpackr-extract: true
